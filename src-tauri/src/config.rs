@@ -36,12 +36,42 @@ fn config_path() -> PathBuf {
 
 pub fn load() -> Result<Config, Box<dyn std::error::Error>> {
     let path = config_path();
-    if !path.exists() {
-        return Ok(Config::default());
+    let mut config = if path.exists() {
+        let data = fs::read_to_string(&path)?;
+        serde_json::from_str(&data)?
+    } else {
+        Config::default()
+    };
+
+    // Dev-only: if no API key saved, try reading from .env.development
+    if config.api_key.is_empty() {
+        if let Some(key) = dev_api_key() {
+            config.api_key = key;
+        }
     }
-    let data = fs::read_to_string(&path)?;
-    let config: Config = serde_json::from_str(&data)?;
+
     Ok(config)
+}
+
+/// In debug builds, read VITE_SARVAM_API_KEY from the project's .env.development.
+/// CARGO_MANIFEST_DIR points to src-tauri; its parent is the project root.
+#[cfg(debug_assertions)]
+fn dev_api_key() -> Option<String> {
+    let env_file = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .parent()?
+        .join(".env.development");
+    let content = fs::read_to_string(env_file).ok()?;
+    for line in content.lines() {
+        if let Some(val) = line.strip_prefix("VITE_SARVAM_API_KEY=") {
+            return Some(val.trim().to_string());
+        }
+    }
+    None
+}
+
+#[cfg(not(debug_assertions))]
+fn dev_api_key() -> Option<String> {
+    None
 }
 
 pub fn save(config: &Config) -> Result<(), Box<dyn std::error::Error>> {
