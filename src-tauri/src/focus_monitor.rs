@@ -127,7 +127,8 @@ fn run_windows(app: AppHandle) {
         "Edit",                        // Standard Win32 edit + matches RichEdit*
         "RICHEDIT",                    // RichEdit variants (case-insensitive via contains)
         "RichEditD2DPT",               // Chrome address bar / modern Office
-        "Chrome_RenderWidgetHostHWND", // Chrome / Edge / Electron content
+        "Chrome_RenderWidgetHostHWND", // Chrome / Edge / Electron render widget
+        "Chrome_WidgetWin",            // Chrome / Electron top-level (VS Code, Slack, etc.)
         "MozillaWindowClass",          // Firefox content area
         "Scintilla",                   // Notepad++, VS Code legacy, many code editors
         "Internet Explorer_Server",    // Legacy IE / Edge / embedded web controls
