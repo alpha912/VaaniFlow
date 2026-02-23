@@ -163,7 +163,7 @@ export default function BubbleApp() {
   const R = H / 2;
 
   const theme = {
-    idle:       { bg: "rgba(18,24,36,0.80)",   border: "rgba(255,255,255,0.08)", shadow: "0 4px 20px rgba(0,0,0,0.5)",        opacity: 0.55 },
+    idle:       { bg: "rgba(18,24,36,0.92)",   border: "rgba(255,255,255,0.15)", shadow: "0 4px 20px rgba(0,0,0,0.6)",        opacity: 0.90 },
     ready:      { bg: "rgba(15,76,92,0.93)",   border: "rgba(26,122,138,0.70)", shadow: "0 4px 28px rgba(26,122,138,0.45)",  opacity: 1    },
     recording:  { bg: "rgba(196,68,12,0.95)",  border: "rgba(232,103,26,0.85)", shadow: "0 0 36px rgba(232,103,26,0.70)",    opacity: 1    },
     processing: { bg: "rgba(26,122,138,0.93)", border: "rgba(26,122,138,0.60)", shadow: "0 4px 24px rgba(26,122,138,0.4)",   opacity: 1    },
