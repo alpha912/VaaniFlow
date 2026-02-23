@@ -42,7 +42,13 @@ export default function App() {
   const [showKey, setShowKey] = useState(false);
 
   useEffect(() => {
-    invoke<Config>("load_config").then(setConfig).catch(console.error);
+    invoke<Config>("load_config").then((cfg) => {
+      // In dev mode, fall back to the VITE_SARVAM_API_KEY env variable
+      if (!cfg.api_key && import.meta.env.VITE_SARVAM_API_KEY) {
+        cfg.api_key = import.meta.env.VITE_SARVAM_API_KEY;
+      }
+      setConfig(cfg);
+    }).catch(console.error);
   }, []);
 
   async function handleSave() {
@@ -124,8 +130,8 @@ export default function App() {
         )}
         <p style={{ marginTop: 6, fontSize: 12, color: "var(--text-muted)" }}>
           Get a free key at{" "}
-          <a href="https://www.sarvam.ai" target="_blank" style={{ color: "var(--orange)" }}>
-            sarvam.ai
+          <a href="https://dashboard.sarvam.ai" target="_blank" rel="noopener" style={{ color: "var(--orange)" }}>
+            dashboard.sarvam.ai
           </a>{" "}
           — ₹1,000 free credits on signup (~33 hours of speech).
         </p>
