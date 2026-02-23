@@ -77,15 +77,16 @@ impl Recorder {
         Ok(())
     }
 
-    /// Stop capture and return collected samples
-    pub fn stop(&mut self) -> Result<Vec<f32>, Box<dyn std::error::Error + Send + Sync>> {
+    /// Stop capture and return (samples, sample_rate)
+    pub fn stop(&mut self) -> Result<(Vec<f32>, u32), Box<dyn std::error::Error + Send + Sync>> {
         // Drop the stream to stop capture
         drop(self.stream.take());
 
         let samples = self.samples.lock().unwrap().clone();
-        log::info!("Recording stopped. {} samples ({:.1}s)", samples.len(),
-            samples.len() as f32 / self.sample_rate as f32);
-        Ok(samples)
+        let rate = self.sample_rate;
+        log::info!("Recording stopped. {} samples ({:.1}s) at {}Hz",
+            samples.len(), samples.len() as f32 / rate as f32, rate);
+        Ok((samples, rate))
     }
 }
 

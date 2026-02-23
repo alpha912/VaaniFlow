@@ -111,6 +111,10 @@ export default function BubbleApp() {
   const [state, setState] = useState<State>("idle");
   const [transcript, setTranscript] = useState("");
   const [errorMsg, setErrorMsg] = useState("");
+  const stateRef = useRef<State>("idle");
+
+  // Keep ref in sync so hotkey listener always sees latest state
+  useEffect(() => { stateRef.current = state; }, [state]);
 
   useEffect(() => {
     const uns = [
@@ -119,11 +123,14 @@ export default function BubbleApp() {
       listen("recording-started",   () => setState("recording")),
       listen("recording-stopped",   () => setState("processing")),
       listen("hotkey-triggered",    () => {
-        setState((s) => {
-          if (s === "idle" || s === "ready") { invoke("start_recording").catch(console.error); return "recording"; }
-          if (s === "recording") { invoke("stop_recording").catch(console.error); return "processing"; }
-          return s;
-        });
+        const s = stateRef.current;
+        if (s === "idle" || s === "ready") {
+          invoke("start_recording").catch(console.error);
+          setState("recording");
+        } else if (s === "recording") {
+          invoke("stop_recording").catch(console.error);
+          setState("processing");
+        }
       }),
       listen<string>("transcription-done",  (e) => {
         setTranscript(e.payload);
@@ -140,11 +147,13 @@ export default function BubbleApp() {
   }, []);
 
   function handleClick() {
-    setState((s) => {
-      if (s === "idle" || s === "ready") { invoke("start_recording").catch(console.error); return "recording"; }
-      if (s === "recording") { invoke("stop_recording").catch(console.error); return "processing"; }
-      return s;
-    });
+    if (state === "idle" || state === "ready") {
+      invoke("start_recording").catch(console.error);
+      setState("recording");
+    } else if (state === "recording") {
+      invoke("stop_recording").catch(console.error);
+      setState("processing");
+    }
   }
 
   async function handleRightClick(e: React.MouseEvent) {

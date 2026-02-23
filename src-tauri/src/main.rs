@@ -64,11 +64,15 @@ async fn stop_recording(
     recording_state: State<'_, RecordingState>,
     config_state: State<'_, ConfigState>,
 ) -> Result<(), String> {
-    // Capture audio data
-    let audio_data = {
+    // Capture audio data + actual sample rate
+    let (audio_data, sample_rate) = {
         let mut recorder = recording_state.0.lock().map_err(|e| e.to_string())?;
         recorder.stop().map_err(|e| e.to_string())?
     };
+
+    if audio_data.is_empty() {
+        return Err("No audio recorded".into());
+    }
 
     // Get current config
     let config = {
@@ -76,21 +80,26 @@ async fn stop_recording(
         cfg.clone()
     };
 
+    if config.api_key.is_empty() {
+        return Err("No API key configured. Open Settings to add your Sarvam key.".into());
+    }
+
     // Spawn async transcription so we don't block the command
     let app_clone = app.clone();
     tauri::async_runtime::spawn(async move {
         let bubble = app_clone.get_webview_window("bubble").unwrap();
 
-        match transcribe_and_paste(&app_clone, audio_data, &config).await {
+        match transcribe_and_paste(&app_clone, audio_data, sample_rate, &config).await {
             Ok(text) => {
-                // Paste the text into the previously focused field
                 if let Err(e) = paste_text(&app_clone, &text) {
+                    log::error!("Paste failed: {e}");
                     let _ = bubble.emit("transcription-error", format!("Paste failed: {e}"));
                 } else {
                     let _ = bubble.emit("transcription-done", text);
                 }
             }
             Err(e) => {
+                log::error!("Transcription failed: {e}");
                 let _ = bubble.emit("transcription-error", e.to_string());
             }
         }
@@ -103,10 +112,12 @@ async fn stop_recording(
 async fn transcribe_and_paste(
     _app: &AppHandle,
     audio: Vec<f32>,
+    sample_rate: u32,
     config: &config::Config,
 ) -> Result<String, String> {
-    // Convert to WAV bytes
-    let wav_bytes = audio::encode_wav(audio, 16000).map_err(|e| e.to_string())?;
+    // Convert to WAV bytes using actual capture sample rate
+    let wav_bytes = audio::encode_wav(audio, sample_rate).map_err(|e| e.to_string())?;
+    log::info!("WAV encoded: {} bytes at {}Hz", wav_bytes.len(), sample_rate);
 
     // STT call
     let stt_result = sarvam::transcribe(&config.api_key, wav_bytes, &config.source_language)
