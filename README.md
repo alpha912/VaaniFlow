@@ -1,150 +1,315 @@
-# वाणीFlow — VaaniFlow
+<p align="center">
+  <img src="src-tauri/icons/128x128@2x.png" alt="VaaniFlow Logo" width="120" />
+</p>
 
-> **Speak any Indian language. Type anywhere.**
+<h1 align="center">VaaniFlow</h1>
 
-VaaniFlow is a free, open-source, MIT-licensed desktop app that puts a small bubble near any text field you click. Press the bubble, speak in any of 22+ Indian languages (or code-mixed Hinglish/Tanglish/etc.), and the transcribed — optionally translated — text is typed into whatever you were focused on.
+<p align="center">
+  <strong>Speak any Indian language. Type anywhere.</strong>
+</p>
 
-Built on [Sarvam AI's Saaras v3 STT API](https://www.sarvam.ai/). You bring your own API key. No servers, no telemetry, no accounts.
+<p align="center">
+  <a href="https://github.com/alpha912/VaaniFlow/blob/main/LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue.svg?style=flat-square" alt="License: MIT" /></a>
+  <a href="https://tauri.app/"><img src="https://img.shields.io/badge/built%20with-Tauri%20v2-FFC131?style=flat-square&logo=tauri&logoColor=white" alt="Tauri v2" /></a>
+  <a href="https://www.rust-lang.org/"><img src="https://img.shields.io/badge/Rust-2021-DEA584?style=flat-square&logo=rust&logoColor=white" alt="Rust" /></a>
+  <a href="https://react.dev/"><img src="https://img.shields.io/badge/React-19-61DAFB?style=flat-square&logo=react&logoColor=black" alt="React 19" /></a>
+  <a href="https://www.sarvam.ai/"><img src="https://img.shields.io/badge/API-Sarvam%20AI-E8671A?style=flat-square" alt="Sarvam AI" /></a>
+</p>
 
----
-
-## Features
-
-- 🎙️ **22+ Indian languages** — Hindi, Tamil, Telugu, Kannada, Malayalam, Bengali, Gujarati, Marathi, Punjabi, Odia, Assamese, Urdu, Nepali, and more
-- 🔀 **Code-mixed speech** — Hinglish, Tanglish, Manglish natively understood
-- 🌐 **Translate to any language** — Set a destination language; VaaniFlow transcribes then translates using Sarvam's Mayura API
-- 🫧 **Smart bubble** — Appears near active text fields automatically; draggable to any position
-- ⌨️ **Global hotkey** — Ctrl+Shift+Space (customisable) as an alternative trigger
-- 🔒 **Your API key, your data** — Calls go directly from your machine to Sarvam's servers
-- 🪶 **Tiny footprint** — Rust + Tauri v2, ~8MB binary
-
----
-
-## Tech Stack
-
-| Layer | Technology |
-|-------|-----------|
-| Frontend | React 19, TypeScript 5.8, Vite 7 |
-| Backend | Rust (2021 edition), Tauri v2 |
-| Audio | cpal (capture), hound (WAV encoding) |
-| API | Sarvam Saaras v3 (STT), Sarvam Mayura v1 (Translation) |
-| Platform | Win32 APIs (Windows), AppleScript (macOS) |
+<p align="center">
+  <sub>A tiny desktop app that puts a floating bubble near any text field.<br/>Click the bubble, speak in any of 22+ Indian languages, and the text flows right in.</sub>
+</p>
 
 ---
 
-## Prerequisites
-
-- [Rust](https://rustup.rs/) (stable)
-- [Node.js](https://nodejs.org/) 18+ (recommended: 24+)
-- [Tauri CLI](https://tauri.app/): `cargo install tauri-cli`
-- A [Sarvam AI API key](https://www.sarvam.ai/) (free tier gives ₹1,000 credits)
-
-### macOS: Accessibility Permission
-
-VaaniFlow needs Accessibility access to detect which app is in focus and simulate keyboard paste.
-
-1. Build and run the app once
-2. Open **System Settings → Privacy & Security → Accessibility**
-3. Enable **VaaniFlow**
-
-### Windows
-
-No extra steps required for basic functionality.
-
----
-
-## Getting Started
-
-```bash
-git clone https://github.com/alpha912/VaaniFlow.git
-cd VaaniFlow
-npm install
-cargo tauri dev
-```
-
-Create a `.env.development` file with your API key:
-```
-VITE_SARVAM_API_KEY=your_api_key_here
-```
-
-To build a release binary:
-```bash
-cargo tauri build
-```
-
----
-
-## Usage
-
-1. Launch VaaniFlow — a small orange bubble appears on screen
-2. Click any text field in any app (Gmail, VS Code, Slack, WhatsApp Web, Notes…)
-3. The bubble glows to indicate it detected the text field
-4. **Click the bubble** or press **Ctrl+Shift+Space** to start recording
-5. Speak naturally in any language
-6. Click the bubble again (or press the hotkey) to stop
-7. Text is transcribed (and translated if you set a target language) and typed into your text field
-
-### Settings
-
-Right-click the bubble → **Settings** to configure:
-- Sarvam API key
-- Source language (or `auto` for auto-detection)
-- Destination language (set to `Same as source` to skip translation)
-- Global hotkey
-
----
+<br/>
 
 ## How It Works
 
 ```
-[Microphone] → cpal (Rust audio capture)
-    → WAV buffer in memory (16-bit PCM, 16kHz mono)
-    → POST /speech-to-text (Sarvam Saaras v3)
-    → transcript + detected language
-    → (if target_lang ≠ source_lang) POST /translate (Sarvam Mayura v1)
-    → final text → clipboard → simulate Cmd+V / Ctrl+V
+                        ┌─────────────────────────────────────────┐
+                        │            Click any text field          │
+                        │       in any app on your computer        │
+                        └───────────────────┬─────────────────────┘
+                                            │
+                                            ▼
+                        ┌─────────────────────────────────────────┐
+                        │       🟠 Bubble appears near field       │
+                        │     Click it or press Ctrl+Shift+Space   │
+                        └───────────────────┬─────────────────────┘
+                                            │
+                                            ▼
+                        ┌─────────────────────────────────────────┐
+                        │          🎙️ Speak naturally              │
+                        │    Hindi, Tamil, Malayalam, English...    │
+                        │    Even code-mixed Hinglish/Tanglish     │
+                        └───────────────────┬─────────────────────┘
+                                            │
+                                            ▼
+                        ┌─────────────────────────────────────────┐
+                        │      ✨ Text appears in your field       │
+                        │    Transcribed + optionally translated    │
+                        └─────────────────────────────────────────┘
 ```
 
----
+<br/>
 
-## Sarvam API Reference
+## Features
 
-| API | Endpoint | Model | Used for |
-|-----|----------|-------|----------|
-| Speech-to-Text | `POST https://api.sarvam.ai/speech-to-text` | saaras:v3 | Transcription |
-| Translate | `POST https://api.sarvam.ai/translate` | mayura:v1 | Language translation |
+<table>
+  <tr>
+    <td width="50%">
 
-Supported audio formats: WAV, MP3, AAC, AIFF, OGG, OPUS, FLAC, MP4/M4A, AMR, WMA, WebM, PCM
+**22+ Indian Languages**<br/>
+Hindi, Tamil, Telugu, Kannada, Malayalam, Bengali, Gujarati, Marathi, Punjabi, Odia, Assamese, Urdu, Nepali, and more
 
-**Note:** STT requests are limited to 30 seconds per call.
+**Code-Mixed Speech**<br/>
+Hinglish, Tanglish, Manglish — speak however you naturally do
 
----
+**Live Translation**<br/>
+Set a destination language and VaaniFlow transcribes + translates in one go
+
+  </td>
+  <td width="50%">
+
+**Smart Floating Bubble**<br/>
+Appears near active text fields automatically. Draggable. Unobtrusive.
+
+**Global Hotkey**<br/>
+`Ctrl+Shift+Space` (customisable) — works from any app
+
+**Microphone Picker**<br/>
+Choose from all available input devices in Settings
+
+  </td>
+  </tr>
+  <tr>
+    <td>
+
+**Privacy First**<br/>
+Your API key, your data. Calls go directly from your machine to Sarvam's servers. No telemetry, no accounts, no middlemen.
+
+  </td>
+  <td>
+
+**Tiny Footprint**<br/>
+Rust + Tauri v2 = ~8 MB binary. No Electron. No bloat.
+
+  </td>
+  </tr>
+</table>
+
+<br/>
+
+## Tech Stack
+
+```
+┌──────────────────────────────────────────────────────────────────┐
+│  Frontend          React 19 · TypeScript 5 · Vite 7             │
+│  Backend           Rust (2021 edition) · Tauri v2               │
+│  Audio             cpal capture · hound WAV · 16kHz resampling  │
+│  Speech-to-Text    Sarvam Saaras v3                             │
+│  Translation       Sarvam Mayura v1                             │
+│  Platform          Win32 APIs (Windows) · AppleScript (macOS)   │
+└──────────────────────────────────────────────────────────────────┘
+```
+
+<br/>
+
+## Quick Start
+
+### Prerequisites
+
+| Tool | Version | Link |
+|------|---------|------|
+| Rust | stable | [rustup.rs](https://rustup.rs/) |
+| Node.js | 18+ | [nodejs.org](https://nodejs.org/) |
+| Tauri CLI | 2.x | `cargo install tauri-cli` |
+| Sarvam API Key | free tier | [sarvam.ai](https://www.sarvam.ai/) |
+
+> Free tier gives you **1,000 credits** — roughly **33 hours** of speech recognition.
+
+### Install & Run
+
+```bash
+# Clone the repo
+git clone https://github.com/alpha912/VaaniFlow.git
+cd VaaniFlow
+
+# Install frontend dependencies
+npm install
+
+# Create your env file
+echo "VITE_SARVAM_API_KEY=your_api_key_here" > .env.development
+
+# Launch in dev mode
+cargo tauri dev
+```
+
+### Build for Production
+
+```bash
+cargo tauri build
+```
+
+<br/>
+
+## Usage
+
+```
+ 1.  Launch VaaniFlow       →  A small orange bubble appears on screen
+ 2.  Click a text field      →  Gmail, VS Code, Slack, WhatsApp Web, Notes...
+ 3.  Bubble glows            →  It detected the text field
+ 4.  Click bubble / hotkey   →  Recording starts (bubble pulses)
+ 5.  Speak naturally         →  Any Indian language, any accent
+ 6.  Click again / hotkey    →  Recording stops
+ 7.  Text appears            →  Transcribed (+ translated) into your field
+```
+
+### Settings
+
+Right-click the bubble **> Settings** to configure:
+
+| Setting | Description |
+|---------|-------------|
+| **API Key** | Your Sarvam API key (with built-in validation) |
+| **Source Language** | Pick a language or `Auto-detect` for all 22+ |
+| **Destination Language** | `Same as source` to skip translation, or pick a target |
+| **Global Hotkey** | Default: `Ctrl+Shift+Space` |
+| **Microphone** | Pick from all input devices, or use System Default |
+
+<br/>
+
+## Architecture
+
+### Audio Pipeline
+
+```
+Microphone (any sample rate)
+    │
+    ├─ cpal ─── raw audio capture (f32 mono)
+    │
+    ├─ Resample ─── 48kHz/44.1kHz → 16kHz (linear interpolation)
+    │
+    ├─ hound ─── WAV encoding (16-bit PCM, 16kHz mono)
+    │
+    ├─ Sarvam Saaras v3 ─── POST /speech-to-text
+    │                        transcript + detected language
+    │
+    ├─ (optional) Sarvam Mayura v1 ─── POST /translate
+    │
+    └─ Clipboard + Ctrl+V ─── text flows into your field
+```
+
+### Smart Routing
+
+| Your Setting | What Happens | API Calls |
+|:---|:---|:---|
+| **Same as source** | Transcribe in original language | `1` — Saaras v3 `mode=transcribe` |
+| **English** | Speech directly to English | `1` — Saaras v3 `mode=translate` |
+| **Other Indian language** | Transcribe + translate | `2` — Saaras v3 + Mayura v1 |
+
+<br/>
 
 ## Supported Languages
 
-| Code | Language | Code | Language |
-|------|----------|------|----------|
-| `hi-IN` | Hindi | `ta-IN` | Tamil |
-| `te-IN` | Telugu | `kn-IN` | Kannada |
-| `ml-IN` | Malayalam | `bn-IN` | Bengali |
-| `gu-IN` | Gujarati | `mr-IN` | Marathi |
-| `pa-IN` | Punjabi | `or-IN` | Odia |
-| `en-IN` | English (Indian) | `as-IN` | Assamese |
-| `ur-IN` | Urdu | `ne-IN` | Nepali |
-| `auto` | Auto-detect | | |
+### Speech-to-Text — Saaras v3
 
----
+| | | | |
+|:---|:---|:---|:---|
+| `hi-IN` Hindi | `ta-IN` Tamil | `te-IN` Telugu | `kn-IN` Kannada |
+| `ml-IN` Malayalam | `bn-IN` Bengali | `gu-IN` Gujarati | `mr-IN` Marathi |
+| `pa-IN` Punjabi | `or-IN` Odia | `en-IN` English | `as-IN` Assamese |
+| `ur-IN` Urdu | `ne-IN` Nepali | `auto` Auto-detect | |
+
+### Translation — Mayura v1
+
+All of the above **plus**: Bodo (`brx-IN`), Dogri (`doi-IN`), Konkani (`kok-IN`), Kashmiri (`ks-IN`), Maithili (`mai-IN`), Manipuri (`mni-IN`), Sanskrit (`sa-IN`), Santali (`sat-IN`), Sindhi (`sd-IN`)
+
+<br/>
+
+## Platform Notes
+
+<details>
+<summary><strong>Windows — Microphone Access</strong></summary>
+
+VaaniFlow needs microphone access. If Windows blocks it, the app will **automatically open** your mic privacy settings.
+
+1. Open **Settings > Privacy & Security > Microphone**
+2. Ensure **Microphone access** is ON
+3. Scroll down — ensure **Let desktop apps access your microphone** is ON
+
+</details>
+
+<details>
+<summary><strong>macOS — Accessibility Permission</strong></summary>
+
+VaaniFlow needs Accessibility access to detect which app is in focus and simulate paste.
+
+1. Build and run the app once
+2. Open **System Settings > Privacy & Security > Accessibility**
+3. Enable **VaaniFlow**
+
+</details>
+
+<br/>
+
+## Project Structure
+
+```
+VaaniFlow/
+│
+├── src/                          # Frontend (React + TypeScript)
+│   ├── App.tsx                   # Settings window
+│   ├── BubbleApp.tsx             # Floating bubble UI + recording logic
+│   ├── Bubble.tsx                # Bubble window entry point
+│   ├── main.tsx                  # Settings window entry point
+│   └── styles.css                # Shared styles
+│
+├── src-tauri/                    # Backend (Rust + Tauri v2)
+│   └── src/
+│       ├── main.rs               # Tauri commands, routing, hotkey
+│       ├── audio.rs              # Mic capture, WAV encoding, resampling
+│       ├── sarvam.rs             # Sarvam API client (STT + translate)
+│       ├── config.rs             # Settings persistence (JSON)
+│       └── focus_monitor.rs      # Cross-app text field detection
+│
+├── .env.development              # Dev API key (gitignored)
+├── package.json                  # Frontend dependencies
+└── src-tauri/Cargo.toml          # Rust dependencies
+```
+
+<br/>
+
+## API Reference
+
+| API | Endpoint | Model | Purpose |
+|:----|:---------|:------|:--------|
+| Speech-to-Text | `POST /speech-to-text` | `saaras:v3` | Transcription + speech-to-English |
+| Translate | `POST /translate` | `mayura:v1` | Text-to-text between Indian languages |
+
+Base URL: `https://api.sarvam.ai`
+
+Supported audio formats: WAV, MP3, AAC, AIFF, OGG, OPUS, FLAC, MP4/M4A, AMR, WMA, WebM, PCM
+Max recording length: **30 seconds** per call
+
+<br/>
 
 ## Contributing
 
-PRs welcome! Key areas that need work:
-- Linux support (AT-SPI2 text-field detection)
-- WebSocket streaming STT for real-time transcription
-- Custom vocabulary / personal dictionary sync
-- Waveform visualisation improvements
+PRs are welcome! Here are some areas that need work:
 
----
+- **Linux support** — AT-SPI2 text-field detection
+- **Streaming STT** — WebSocket-based real-time transcription
+- **Custom vocabulary** — Personal dictionary sync
+- **Waveform visualisation** — Better recording feedback
+
+<br/>
 
 ## License
 
 MIT — see [LICENSE](./LICENSE)
+
+<p align="center">
+  <sub>Built with Rust, React, and Sarvam AI</sub>
+</p>

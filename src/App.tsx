@@ -86,7 +86,7 @@ export default function App() {
       <div style={{ marginBottom: 32, display: "flex", alignItems: "center", gap: 12 }}>
         <div style={{ fontSize: 28 }}>🎙️</div>
         <div>
-          <h1 style={{ fontSize: 22, fontWeight: 700, color: "#E8671A" }}>वाणी VaaniFlow</h1>
+          <h1 style={{ fontSize: 22, fontWeight: 700, color: "#E8671A" }}>VaaniFlow</h1>
           <p style={{ fontSize: 12, color: "var(--text-muted)", marginTop: 2 }}>
             Speak any language. Flow anywhere.
           </p>
