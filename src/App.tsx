@@ -27,6 +27,7 @@ interface Config {
   source_language: string;
   target_language: string;
   hotkey: string;
+  microphone: string;
 }
 
 export default function App() {
@@ -35,11 +36,13 @@ export default function App() {
     source_language: "auto",
     target_language: "same",
     hotkey: "ctrl+shift+space",
+    microphone: "default",
   });
   const [saved, setSaved] = useState(false);
   const [testing, setTesting] = useState(false);
   const [testResult, setTestResult] = useState<string | null>(null);
   const [showKey, setShowKey] = useState(false);
+  const [microphones, setMicrophones] = useState<string[]>([]);
 
   useEffect(() => {
     invoke<Config>("load_config").then((cfg) => {
@@ -49,6 +52,8 @@ export default function App() {
       }
       setConfig(cfg);
     }).catch(console.error);
+
+    invoke<string[]>("list_microphones").then(setMicrophones).catch(console.error);
   }, []);
 
   async function handleSave() {
@@ -180,6 +185,24 @@ export default function App() {
         />
         <p style={{ marginTop: 6, fontSize: 12, color: "var(--text-muted)" }}>
           Press anywhere to toggle recording. Format: ctrl+shift+space, cmd+shift+v, etc.
+        </p>
+      </div>
+
+      {/* Microphone */}
+      <div className="field">
+        <label>Microphone</label>
+        <select
+          value={config.microphone}
+          onChange={(e) => setConfig({ ...config, microphone: e.target.value })}
+          title="Microphone"
+        >
+          <option value="default">System Default</option>
+          {microphones.map((name) => (
+            <option key={name} value={name}>{name}</option>
+          ))}
+        </select>
+        <p style={{ marginTop: 6, fontSize: 12, color: "var(--text-muted)" }}>
+          Select your preferred input device. Use "System Default" to follow Windows sound settings.
         </p>
       </div>
 

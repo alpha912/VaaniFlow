@@ -14,6 +14,13 @@ pub struct Config {
     pub target_language: String,
     /// e.g. "ctrl+shift+space" or "cmd+shift+v"
     pub hotkey: String,
+    /// Microphone device name, or "default" to use system default
+    #[serde(default = "default_microphone")]
+    pub microphone: String,
+}
+
+fn default_microphone() -> String {
+    "default".to_string()
 }
 
 impl Default for Config {
@@ -23,6 +30,7 @@ impl Default for Config {
             source_language: "auto".to_string(),
             target_language: "same".to_string(),
             hotkey: "ctrl+shift+space".to_string(),
+            microphone: "default".to_string(),
         }
     }
 }

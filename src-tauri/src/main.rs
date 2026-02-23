@@ -53,9 +53,21 @@ async fn test_api_key(api_key: String) -> Result<String, String> {
 }
 
 #[tauri::command]
-async fn start_recording(state: State<'_, RecordingState>) -> Result<(), String> {
+async fn list_microphones() -> Result<Vec<String>, String> {
+    Ok(audio::list_devices())
+}
+
+#[tauri::command]
+async fn start_recording(
+    state: State<'_, RecordingState>,
+    config_state: State<'_, ConfigState>,
+) -> Result<(), String> {
+    let mic = {
+        let cfg = config_state.0.lock().map_err(|e| e.to_string())?;
+        cfg.microphone.clone()
+    };
     let mut recorder = state.0.lock().map_err(|e| e.to_string())?;
-    recorder.start().map_err(|e| e.to_string())
+    recorder.start(&mic).map_err(|e| e.to_string())
 }
 
 #[tauri::command]
@@ -72,6 +84,19 @@ async fn stop_recording(
 
     if audio_data.is_empty() {
         return Err("No audio recorded".into());
+    }
+
+    // Detect silent audio (microphone permissions likely blocked)
+    let max_amp = audio_data.iter().map(|s| s.abs()).fold(0.0_f32, f32::max);
+    if max_amp == 0.0 {
+        // Try to open Windows microphone privacy settings
+        #[cfg(target_os = "windows")]
+        {
+            let _ = std::process::Command::new("cmd")
+                .args(["/C", "start", "ms-settings:privacy-microphone"])
+                .spawn();
+        }
+        return Err("Microphone returned silence. Please enable microphone access and try again.".into());
     }
 
     // Get current config
@@ -108,51 +133,57 @@ async fn stop_recording(
     Ok(())
 }
 
-/// Calls the appropriate Sarvam API(s) based on config, returns final text.
+/// Calls Sarvam Saaras v3 API, returns final text.
 ///
-/// Routing logic:
-///   target = "same"  → STT only (speech-to-text)
-///   target = "en-IN" → STT-Translate (speech-to-text-translate, single call)
-///   target = other   → STT then Text Translate (two calls)
+/// Routing (all via /speech-to-text with Saaras v3):
+///   target = "same"  → mode=transcribe (original language)
+///   target = "en-IN" → mode=translate  (speech → English, single call)
+///   target = other   → mode=transcribe then text /translate (two calls)
 async fn transcribe_and_paste(
     _app: &AppHandle,
     audio: Vec<f32>,
     sample_rate: u32,
     config: &config::Config,
 ) -> Result<String, String> {
-    // Convert to WAV bytes using actual capture sample rate
     let wav_bytes = audio::encode_wav(audio, sample_rate).map_err(|e| e.to_string())?;
-    log::info!("WAV encoded: {} bytes at {}Hz", wav_bytes.len(), sample_rate);
+    log::info!("WAV encoded: {} bytes (resampled to 16kHz)", wav_bytes.len());
 
     if config.target_language == "en-IN" {
-        // English output → use speech-to-text-translate (single API call)
-        log::info!("Route: STT-Translate → English");
-        let result = sarvam::transcribe_translate(
+        // English output → Saaras v3 mode=translate (single call)
+        log::info!("Route: Saaras v3 translate → English");
+        let result = sarvam::speech_to_text(
             &config.api_key,
             wav_bytes,
             &config.source_language,
+            sarvam::SttMode::Translate,
         )
         .await
         .map_err(|e| e.to_string())?;
         Ok(result.transcript)
     } else {
-        // Non-English or same → STT first
-        log::info!("Route: STT (then translate if needed)");
-        let stt_result = sarvam::transcribe(&config.api_key, wav_bytes, &config.source_language)
-            .await
-            .map_err(|e| e.to_string())?;
+        // Transcribe first (original language)
+        let stt_mode = sarvam::SttMode::Transcribe;
+        log::info!("Route: Saaras v3 transcribe");
+        let stt_result = sarvam::speech_to_text(
+            &config.api_key,
+            wav_bytes,
+            &config.source_language,
+            stt_mode,
+        )
+        .await
+        .map_err(|e| e.to_string())?;
 
-        // If target is "same" or matches detected language, no translation needed
-        if config.target_language == "same"
-            || config.target_language == stt_result.language_code
-        {
+        let detected_lang = stt_result.language_code.as_deref().unwrap_or("auto");
+
+        // No translation needed if target is "same" or matches detected language
+        if config.target_language == "same" || config.target_language == detected_lang {
             Ok(stt_result.transcript)
         } else {
-            // Translate to target Indian language via text translate
+            // Translate to target Indian language via text translate (Mayura v1)
             let translated = sarvam::translate(
                 &config.api_key,
                 &stt_result.transcript,
-                &stt_result.language_code,
+                detected_lang,
                 &config.target_language,
             )
             .await
@@ -247,8 +278,53 @@ fn register_hotkey(app: &AppHandle, hotkey_str: &str) -> Result<(), String> {
 
 // ─── Main ────────────────────────────────────────────────────────────────────
 
+fn init_logging() {
+    use std::io::Write;
+
+    // In debug builds, write logs to a file that persists across process restarts
+    #[cfg(debug_assertions)]
+    {
+        let log_path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .parent()
+            .unwrap()
+            .join("vaani-debug.log");
+        if let Ok(file) = std::fs::OpenOptions::new()
+            .create(true)
+            .write(true)
+            .truncate(true)
+            .open(&log_path)
+        {
+            let file = std::sync::Mutex::new(file);
+            env_logger::Builder::from_env(
+                env_logger::Env::default().default_filter_or("info"),
+            )
+            .format(move |buf, record| {
+                let msg = format!(
+                    "[{} {}] {}\n",
+                    record.level(),
+                    record.target(),
+                    record.args()
+                );
+                let _ = buf.write_all(msg.as_bytes());
+                if let Ok(mut f) = file.lock() {
+                    let _ = f.write_all(msg.as_bytes());
+                    let _ = f.flush();
+                }
+                Ok(())
+            })
+            .init();
+            return;
+        }
+    }
+
+    // Fallback: normal env_logger
+    env_logger::Builder::from_env(
+        env_logger::Env::default().default_filter_or("info"),
+    ).init();
+}
+
 fn main() {
-    env_logger::init();
+    init_logging();
 
     // Load config from disk (or defaults)
     let config = config::load().unwrap_or_default();
@@ -265,6 +341,7 @@ fn main() {
             load_config,
             save_config,
             test_api_key,
+            list_microphones,
             start_recording,
             stop_recording,
             open_settings,
