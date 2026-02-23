@@ -231,7 +231,8 @@ fn main() {
             // Register hotkey from saved config
             let hotkey = {
                 let cfg = app.state::<ConfigState>();
-                cfg.0.lock().unwrap().hotkey.clone()
+                let hotkey = cfg.0.lock().unwrap().hotkey.clone();
+                hotkey
             };
             if let Err(e) = register_hotkey(&app_handle, &hotkey) {
                 log::warn!("Could not register hotkey '{hotkey}': {e}");
