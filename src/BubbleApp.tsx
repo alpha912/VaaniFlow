@@ -120,7 +120,7 @@ export default function BubbleApp() {
       listen("recording-stopped",   () => setState("processing")),
       listen("hotkey-triggered",    () => {
         setState((s) => {
-          if (s === "ready") { invoke("start_recording").catch(console.error); return "recording"; }
+          if (s === "idle" || s === "ready") { invoke("start_recording").catch(console.error); return "recording"; }
           if (s === "recording") { invoke("stop_recording").catch(console.error); return "processing"; }
           return s;
         });
@@ -139,9 +139,12 @@ export default function BubbleApp() {
     return () => uns.forEach((p) => p.then((f) => f()));
   }, []);
 
-  async function handleClick() {
-    if (state === "ready")     await invoke("start_recording").catch(console.error);
-    if (state === "recording") await invoke("stop_recording").catch(console.error);
+  function handleClick() {
+    setState((s) => {
+      if (s === "idle" || s === "ready") { invoke("start_recording").catch(console.error); return "recording"; }
+      if (s === "recording") { invoke("stop_recording").catch(console.error); return "processing"; }
+      return s;
+    });
   }
 
   async function handleRightClick(e: React.MouseEvent) {
@@ -208,7 +211,7 @@ export default function BubbleApp() {
           border: `1.5px solid ${theme.border}`,
           boxShadow: theme.shadow,
           opacity: theme.opacity,
-          cursor: state === "idle" ? "default" : state === "processing" ? "wait" : "pointer",
+          cursor: state === "processing" ? "wait" : state === "done" || state === "error" ? "default" : "pointer",
           display: "flex", alignItems: "center", justifyContent: "center",
           overflow: "hidden",
           backdropFilter: "blur(16px)",

@@ -122,31 +122,51 @@ fn run_windows(app: AppHandle) {
     use std::time::Duration;
 
     // Window class names that indicate a text-input control.
-    // Chrome/Electron renderer host is included so web text fields
-    // (Gmail, Notion, Linear, etc.) also trigger the bubble.
+    // Uses `contains` matching, so "Edit" also matches "RichEdit20W" etc.
     const TEXT_CLASSES: &[&str] = &[
-        "Edit",               // Standard Win32 single-line input
-        "RichEdit",           // RichEdit v1
-        "RichEdit20A",        // RichEdit v2 ANSI
-        "RichEdit20W",        // RichEdit v2 Unicode
-        "RICHEDIT60W",        // RichEdit v6 (Office)
-        "RichEditD2DPT",      // Chrome address bar
-        "Chrome_RenderWidgetHostHWND", // Chrome / Electron content
+        "Edit",                        // Standard Win32 edit + matches RichEdit*
+        "RICHEDIT",                    // RichEdit variants (case-insensitive via contains)
+        "RichEditD2DPT",               // Chrome address bar / modern Office
+        "Chrome_RenderWidgetHostHWND", // Chrome / Edge / Electron content
+        "MozillaWindowClass",          // Firefox content area
+        "Scintilla",                   // Notepad++, VS Code legacy, many code editors
+        "Internet Explorer_Server",    // Legacy IE / Edge / embedded web controls
+        "_WwG",                        // Microsoft Word editing surface
+        "EXCEL7",                      // Excel cell editing
+        "_WwB",                        // Word/Outlook compose body
+        "Afx:RichEdit",               // MFC rich-edit controls
+        "TextBoxView",                 // WPF TextBox
+        "RichTextBox",                 // WPF RichTextBox
+        "CASCADIA_HOSTING_WINDOW_CLASS", // Windows Terminal
+        "ConsoleWindowClass",          // Legacy CMD / PowerShell
+        "TermControl",                 // Modern Windows Terminal input
+        "Wpf",                         // Generic WPF controls
+        "Xaml",                        // UWP / WinUI XAML controls
+        "InputSite",                   // Windows.UI.Input.InputSite
     ];
 
     let mut last_was_text = false;
+    let mut poll_count: u64 = 0;
 
     loop {
         std::thread::sleep(Duration::from_millis(200));
 
-        let is_text = windows_focused_is_text(TEXT_CLASSES);
+        let (is_text, class_name) = windows_focused_class_check(TEXT_CLASSES);
+
+        // Log every ~5 seconds (25 polls × 200ms) to avoid flooding
+        poll_count += 1;
+        if poll_count % 25 == 0 {
+            log::debug!("focus_monitor: class={class_name:?} is_text={is_text}");
+        }
 
         if is_text && !last_was_text {
+            log::info!("focus_monitor: text field detected — class={class_name:?}");
             if let Some(bubble) = app.get_webview_window("bubble") {
                 let _ = bubble.emit("text-field-focused", ());
             }
             last_was_text = true;
         } else if !is_text && last_was_text {
+            log::info!("focus_monitor: text field lost — class={class_name:?}");
             if let Some(bubble) = app.get_webview_window("bubble") {
                 let _ = bubble.emit("text-field-blurred", ());
             }
@@ -158,10 +178,12 @@ fn run_windows(app: AppHandle) {
 // GetForegroundWindow → get its thread → GetGUIThreadInfo (gives the focused
 // HWND within that thread) → GetClassNameW.
 //
+// Returns (is_text_field, class_name) so the caller can log for debugging.
+//
 // IMPORTANT: plain GetFocus() only works on the *calling* thread, which is
 // why we go via GetGUIThreadInfo instead.
 #[cfg(target_os = "windows")]
-fn windows_focused_is_text(text_classes: &[&str]) -> bool {
+fn windows_focused_class_check(text_classes: &[&str]) -> (bool, String) {
     use windows::Win32::UI::WindowsAndMessaging::{
         GetForegroundWindow, GetGUIThreadInfo, GetClassNameW, GetWindowThreadProcessId,
         GUITHREADINFO,
@@ -170,13 +192,13 @@ fn windows_focused_is_text(text_classes: &[&str]) -> bool {
     unsafe {
         let fg = GetForegroundWindow();
         if fg.0.is_null() {
-            return false;
+            return (false, "(no foreground)".into());
         }
 
         // Get the thread that owns the foreground window
         let thread_id = GetWindowThreadProcessId(fg, None);
         if thread_id == 0 {
-            return false;
+            return (false, "(no thread)".into());
         }
 
         // GetGUIThreadInfo gives us the hwndFocus of that thread — the
@@ -186,21 +208,29 @@ fn windows_focused_is_text(text_classes: &[&str]) -> bool {
             ..Default::default()
         };
         if GetGUIThreadInfo(thread_id, &mut info).is_err() {
-            return false;
+            return (false, "(gui info failed)".into());
         }
-        if info.hwndFocus.0.is_null() {
-            return false;
-        }
+
+        // If no focused child, check the foreground window class directly.
+        // Some apps (e.g. UWP, WinUI) don't expose child HWNDs.
+        let target_hwnd = if info.hwndFocus.0.is_null() {
+            fg
+        } else {
+            info.hwndFocus
+        };
 
         // Read the window class name of the focused control
         let mut buf = [0u16; 256];
-        let len = GetClassNameW(info.hwndFocus, &mut buf);
+        let len = GetClassNameW(target_hwnd, &mut buf);
         if len == 0 {
-            return false;
+            return (false, "(no class)".into());
         }
 
         let class = String::from_utf16_lossy(&buf[..len as usize]);
-        text_classes.iter().any(|&c| class.as_str().contains(c))
+        // Case-insensitive contains check for broader matching
+        let class_lower = class.to_lowercase();
+        let is_text = text_classes.iter().any(|&c| class_lower.contains(&c.to_lowercase()));
+        (is_text, class)
     }
 }
 
