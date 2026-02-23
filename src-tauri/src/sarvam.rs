@@ -1,11 +1,17 @@
 // src-tauri/src/sarvam.rs
-// Sarvam AI API calls: Saaras v3 STT and Mayura translation
+// Sarvam AI API calls: STT, STT-Translate, and Text Translation
 
 use reqwest::{multipart, Client};
 use serde::Deserialize;
 
 const STT_ENDPOINT: &str = "https://api.sarvam.ai/speech-to-text";
+const STT_TRANSLATE_ENDPOINT: &str = "https://api.sarvam.ai/speech-to-text-translate";
 const TRANSLATE_ENDPOINT: &str = "https://api.sarvam.ai/translate";
+
+/// Reusable HTTP/1.1 client — some multipart APIs don't work with HTTP/2
+fn http1_client() -> Result<Client, reqwest::Error> {
+    Client::builder().http1_only().build()
+}
 
 // ─── STT ─────────────────────────────────────────────────────────────────────
 
@@ -15,26 +21,25 @@ pub struct SttResponse {
     pub language_code: String,
 }
 
-/// Send WAV bytes to Sarvam Saaras v3 STT
+/// Send WAV bytes to Sarvam Saarika STT (speech-to-text only)
 /// language_code: "auto" for auto-detection, or e.g. "hi-IN", "ta-IN"
 pub async fn transcribe(
     api_key: &str,
     wav_bytes: Vec<u8>,
     language_code: &str,
 ) -> Result<SttResponse, Box<dyn std::error::Error + Send + Sync>> {
-    let client = Client::new();
+    log::info!("Calling STT API: {} bytes, lang={}", wav_bytes.len(), language_code);
 
-    // Build multipart form
+    let client = http1_client()?;
+
     let file_part = multipart::Part::bytes(wav_bytes)
         .file_name("audio.wav")
         .mime_str("audio/wav")?;
 
     let mut form = multipart::Form::new()
         .part("file", file_part)
-        .text("model", "saaras:v3")
-        .text("with_disfluencies", "false"); // Remove um, uh, acha, haan, etc.
+        .text("model", "saarika:v2.5");
 
-    // Only specify language if not auto-detect
     if language_code != "auto" {
         form = form.text("language_code", language_code.to_string());
     }
@@ -57,7 +62,57 @@ pub async fn transcribe(
     Ok(result)
 }
 
-// ─── Translation ──────────────────────────────────────────────────────────────
+// ─── STT + Translate (single API call, supports English output) ──────────────
+
+#[derive(Debug, Deserialize)]
+pub struct SttTranslateResponse {
+    pub transcript: String,
+    pub language_code: String,
+}
+
+/// Send WAV bytes to Sarvam Saaras STT-Translate (speech → English text)
+/// Uses the /speech-to-text-translate endpoint with model=saaras:v3
+pub async fn transcribe_translate(
+    api_key: &str,
+    wav_bytes: Vec<u8>,
+    language_code: &str,
+) -> Result<SttTranslateResponse, Box<dyn std::error::Error + Send + Sync>> {
+    log::info!("Calling STT-Translate API: {} bytes, lang={}", wav_bytes.len(), language_code);
+
+    let client = http1_client()?;
+
+    let file_part = multipart::Part::bytes(wav_bytes)
+        .file_name("audio.wav")
+        .mime_str("audio/wav")?;
+
+    let mut form = multipart::Form::new()
+        .part("file", file_part)
+        .text("model", "saaras:v3")
+        .text("mode", "classic");
+
+    if language_code != "auto" {
+        form = form.text("language_code", language_code.to_string());
+    }
+
+    let response = client
+        .post(STT_TRANSLATE_ENDPOINT)
+        .header("api-subscription-key", api_key)
+        .multipart(form)
+        .send()
+        .await?;
+
+    if !response.status().is_success() {
+        let status = response.status();
+        let body = response.text().await.unwrap_or_default();
+        return Err(format!("STT-Translate API error {status}: {body}").into());
+    }
+
+    let result: SttTranslateResponse = response.json().await?;
+    log::info!("STT-Translated ({}) → \"{}\"", result.language_code, result.transcript);
+    Ok(result)
+}
+
+// ─── Text Translation ────────────────────────────────────────────────────────
 
 #[derive(serde::Serialize)]
 struct TranslateRequest<'a> {
@@ -73,7 +128,7 @@ struct TranslateResponse {
     translated_text: String,
 }
 
-/// Translate text using Sarvam Mayura v1
+/// Translate text using Sarvam Mayura v1 (text → text)
 pub async fn translate(
     api_key: &str,
     text: &str,

@@ -108,7 +108,12 @@ async fn stop_recording(
     Ok(())
 }
 
-/// Calls Sarvam STT, then optionally Sarvam Translate, returns final text
+/// Calls the appropriate Sarvam API(s) based on config, returns final text.
+///
+/// Routing logic:
+///   target = "same"  → STT only (speech-to-text)
+///   target = "en-IN" → STT-Translate (speech-to-text-translate, single call)
+///   target = other   → STT then Text Translate (two calls)
 async fn transcribe_and_paste(
     _app: &AppHandle,
     audio: Vec<f32>,
@@ -119,24 +124,41 @@ async fn transcribe_and_paste(
     let wav_bytes = audio::encode_wav(audio, sample_rate).map_err(|e| e.to_string())?;
     log::info!("WAV encoded: {} bytes at {}Hz", wav_bytes.len(), sample_rate);
 
-    // STT call
-    let stt_result = sarvam::transcribe(&config.api_key, wav_bytes, &config.source_language)
-        .await
-        .map_err(|e| e.to_string())?;
-
-    // Translation (if target language is set and different from source)
-    if config.target_language != "same" && config.target_language != stt_result.language_code {
-        let translated = sarvam::translate(
+    if config.target_language == "en-IN" {
+        // English output → use speech-to-text-translate (single API call)
+        log::info!("Route: STT-Translate → English");
+        let result = sarvam::transcribe_translate(
             &config.api_key,
-            &stt_result.transcript,
-            &stt_result.language_code,
-            &config.target_language,
+            wav_bytes,
+            &config.source_language,
         )
         .await
         .map_err(|e| e.to_string())?;
-        Ok(translated)
+        Ok(result.transcript)
     } else {
-        Ok(stt_result.transcript)
+        // Non-English or same → STT first
+        log::info!("Route: STT (then translate if needed)");
+        let stt_result = sarvam::transcribe(&config.api_key, wav_bytes, &config.source_language)
+            .await
+            .map_err(|e| e.to_string())?;
+
+        // If target is "same" or matches detected language, no translation needed
+        if config.target_language == "same"
+            || config.target_language == stt_result.language_code
+        {
+            Ok(stt_result.transcript)
+        } else {
+            // Translate to target Indian language via text translate
+            let translated = sarvam::translate(
+                &config.api_key,
+                &stt_result.transcript,
+                &stt_result.language_code,
+                &config.target_language,
+            )
+            .await
+            .map_err(|e| e.to_string())?;
+            Ok(translated)
+        }
     }
 }
 
