@@ -165,9 +165,21 @@ fn simulate_paste() {
 
 #[tauri::command]
 async fn open_settings(app: AppHandle) -> Result<(), String> {
-    let window = app
-        .get_webview_window("settings")
-        .ok_or("Settings window not found")?;
+    // If the settings window was closed (destroyed), recreate it
+    let window = match app.get_webview_window("settings") {
+        Some(w) => w,
+        None => {
+            let url = tauri::WebviewUrl::App("index.html".into());
+            tauri::WebviewWindowBuilder::new(&app, "settings", url)
+                .title("VaaniFlow — Settings")
+                .inner_size(560.0, 640.0)
+                .resizable(false)
+                .decorations(true)
+                .center()
+                .build()
+                .map_err(|e| e.to_string())?
+        }
+    };
     window.show().map_err(|e| e.to_string())?;
     window.set_focus().map_err(|e| e.to_string())?;
     Ok(())
