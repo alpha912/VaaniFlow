@@ -8,7 +8,11 @@ mod focus_monitor;
 mod sarvam;
 
 use std::sync::{Arc, Mutex};
-use tauri::{AppHandle, Emitter, Manager, State};
+use tauri::{
+    menu::{Menu, MenuItem},
+    tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent},
+    AppHandle, Emitter, Manager, State,
+};
 use tauri_plugin_clipboard_manager::ClipboardExt;
 use tauri_plugin_global_shortcut::{GlobalShortcutExt, Shortcut};
 
@@ -238,14 +242,12 @@ fn simulate_paste() {
     let _ = simulate(&EventType::KeyRelease(hold_key));
 }
 
-#[tauri::command]
-async fn open_settings(app: AppHandle) -> Result<(), String> {
-    // If the settings window was closed (destroyed), recreate it
+fn open_settings_inner(app: &AppHandle) -> Result<(), String> {
     let window = match app.get_webview_window("settings") {
         Some(w) => w,
         None => {
             let url = tauri::WebviewUrl::App("index.html".into());
-            tauri::WebviewWindowBuilder::new(&app, "settings", url)
+            tauri::WebviewWindowBuilder::new(app, "settings", url)
                 .title("VaaniFlow — Settings")
                 .inner_size(560.0, 640.0)
                 .resizable(false)
@@ -258,6 +260,11 @@ async fn open_settings(app: AppHandle) -> Result<(), String> {
     window.show().map_err(|e| e.to_string())?;
     window.set_focus().map_err(|e| e.to_string())?;
     Ok(())
+}
+
+#[tauri::command]
+async fn open_settings(app: AppHandle) -> Result<(), String> {
+    open_settings_inner(&app)
 }
 
 #[tauri::command]
@@ -290,6 +297,43 @@ fn register_hotkey(app: &AppHandle, hotkey_str: &str) -> Result<(), String> {
             });
         })
         .map_err(|e| e.to_string())
+}
+
+// ─── System tray ──────────────────────────────────────────────────────────────
+
+fn setup_tray(app: &tauri::App) -> Result<(), Box<dyn std::error::Error>> {
+    let settings_i = MenuItem::with_id(app, "settings", "Settings", true, None::<&str>)?;
+    let quit_i = MenuItem::with_id(app, "quit", "Quit VaaniFlow", true, None::<&str>)?;
+    let menu = Menu::with_items(app, &[&settings_i, &quit_i])?;
+
+    TrayIconBuilder::new()
+        .icon(app.default_window_icon().unwrap().clone())
+        .tooltip("VaaniFlow — Click a text field to start")
+        .menu(&menu)
+        .show_menu_on_left_click(false)
+        .on_menu_event(|app, event| match event.id.as_ref() {
+            "settings" => {
+                let _ = open_settings_inner(app);
+            }
+            "quit" => {
+                app.exit(0);
+            }
+            _ => {}
+        })
+        .on_tray_icon_event(|tray, event| {
+            if let TrayIconEvent::Click {
+                button: MouseButton::Left,
+                button_state: MouseButtonState::Up,
+                ..
+            } = event
+            {
+                let app = tray.app_handle();
+                let _ = open_settings_inner(app);
+            }
+        })
+        .build(app)?;
+
+    Ok(())
 }
 
 // ─── Main ────────────────────────────────────────────────────────────────────
@@ -359,6 +403,11 @@ fn main() {
             quit_app,
         ])
         .setup(|app| {
+            // Set up system tray with right-click menu
+            if let Err(e) = setup_tray(app) {
+                log::error!("Failed to set up tray: {e}");
+            }
+
             let app_handle = app.handle().clone();
 
             // Register hotkey from saved config
@@ -385,7 +434,7 @@ fn main() {
                     let phys_w = screen.width as f64;
                     let phys_h = screen.height as f64;
                     let x = (phys_w - 220.0 * scale).max(0.0) as i32;
-                    let y = (phys_h - 160.0 * scale).max(0.0) as i32;
+                    let y = (phys_h - 300.0 * scale).max(0.0) as i32;
                     let _ = bubble.set_position(tauri::PhysicalPosition::new(x, y));
                 }
             }
@@ -408,9 +457,12 @@ fn main() {
         .build(tauri::generate_context!())
         .expect("error while running Vaani")
         .run(|_app_handle, event| {
-            // Keep running even when all windows are closed (lives in system tray)
-            if let tauri::RunEvent::ExitRequested { api, .. } = event {
-                api.prevent_exit();
+            // Keep running when all windows are closed (lives in system tray),
+            // but allow explicit app.exit() calls (code is Some) to go through.
+            if let tauri::RunEvent::ExitRequested { code, api, .. } = event {
+                if code.is_none() {
+                    api.prevent_exit();
+                }
             }
         });
 }

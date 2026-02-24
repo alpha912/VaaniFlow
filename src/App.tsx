@@ -1,6 +1,10 @@
 // src/App.tsx — Settings window
 import { useState, useEffect } from "react";
 import { invoke } from "@tauri-apps/api/core";
+import {
+  IconMicrophone, IconEye, IconEyeOff, IconLanguage,
+  IconWorld, IconKeyboard, IconMicrophone2, IconKey, IconCheck,
+} from "@tabler/icons-react";
 
 const LANGUAGES = [
   { code: "auto", label: "Auto-detect" },
@@ -84,7 +88,7 @@ export default function App() {
     <div style={{ padding: "28px 32px", maxWidth: 560, margin: "0 auto" }}>
       {/* Header */}
       <div style={{ marginBottom: 32, display: "flex", alignItems: "center", gap: 12 }}>
-        <div style={{ fontSize: 28 }}>🎙️</div>
+        <IconMicrophone size={28} stroke={1.5} color="#E8671A" />
         <div>
           <h1 style={{ fontSize: 22, fontWeight: 700, color: "#E8671A" }}>VaaniFlow</h1>
           <p style={{ fontSize: 12, color: "var(--text-muted)", marginTop: 2 }}>
@@ -95,7 +99,7 @@ export default function App() {
 
       {/* API Key */}
       <div className="field">
-        <label>Sarvam API Key</label>
+        <label><IconKey size={13} stroke={1.5} style={{ verticalAlign: "middle", marginRight: 4 }} /> Sarvam API Key</label>
         <div style={{ display: "flex", gap: 8 }}>
           <div style={{ position: "relative", flex: 1 }}>
             <input
@@ -112,7 +116,7 @@ export default function App() {
                 background: "none", padding: 4, color: "var(--text-muted)", fontSize: 16,
               }}
             >
-              {showKey ? "🙈" : "👁️"}
+              {showKey ? <IconEyeOff size={16} stroke={1.5} /> : <IconEye size={16} stroke={1.5} />}
             </button>
           </div>
           <button
@@ -144,7 +148,7 @@ export default function App() {
 
       {/* Source Language */}
       <div className="field">
-        <label>Source Language</label>
+        <label><IconLanguage size={13} stroke={1.5} style={{ verticalAlign: "middle", marginRight: 4 }} /> Source Language</label>
         <select
           value={config.source_language}
           onChange={(e) => setConfig({ ...config, source_language: e.target.value })}
@@ -160,7 +164,7 @@ export default function App() {
 
       {/* Target Language */}
       <div className="field">
-        <label>Destination Language (Translation)</label>
+        <label><IconWorld size={13} stroke={1.5} style={{ verticalAlign: "middle", marginRight: 4 }} /> Destination Language (Translation)</label>
         <select
           value={config.target_language}
           onChange={(e) => setConfig({ ...config, target_language: e.target.value })}
@@ -176,7 +180,7 @@ export default function App() {
 
       {/* Hotkey */}
       <div className="field">
-        <label>Global Hotkey</label>
+        <label><IconKeyboard size={13} stroke={1.5} style={{ verticalAlign: "middle", marginRight: 4 }} /> Global Hotkey</label>
         <input
           type="text"
           value={config.hotkey}
@@ -190,7 +194,7 @@ export default function App() {
 
       {/* Microphone */}
       <div className="field">
-        <label>Microphone</label>
+        <label><IconMicrophone2 size={13} stroke={1.5} style={{ verticalAlign: "middle", marginRight: 4 }} /> Microphone</label>
         <select
           value={config.microphone}
           onChange={(e) => setConfig({ ...config, microphone: e.target.value })}
@@ -225,7 +229,7 @@ export default function App() {
         onClick={handleSave}
         style={{ width: "100%", padding: "12px" }}
       >
-        {saved ? "✓ Saved!" : "Save Settings"}
+        {saved ? <><IconCheck size={16} stroke={2} style={{ verticalAlign: "middle", marginRight: 4 }} /> Saved!</> : "Save Settings"}
       </button>
 
       <p style={{ marginTop: 16, fontSize: 11, color: "var(--text-muted)", textAlign: "center" }}>

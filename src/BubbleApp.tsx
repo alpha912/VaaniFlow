@@ -2,7 +2,7 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
-import { Menu, MenuItem, PredefinedMenuItem } from "@tauri-apps/api/menu";
+import { IconMicrophone, IconCheck, IconX, IconSettings, IconPower } from "@tabler/icons-react";
 
 type State = "idle" | "ready" | "recording" | "processing" | "done" | "error";
 
@@ -111,6 +111,7 @@ export default function BubbleApp() {
   const [state, setState] = useState<State>("idle");
   const [transcript, setTranscript] = useState("");
   const [errorMsg, setErrorMsg] = useState("");
+  const [ctxMenu, setCtxMenu] = useState<{ x: number; y: number } | null>(null);
   const stateRef = useRef<State>("idle");
   const resetTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -177,17 +178,28 @@ export default function BubbleApp() {
     }
   }
 
-  async function handleRightClick(e: React.MouseEvent) {
+  function handleRightClick(e: React.MouseEvent) {
     e.preventDefault();
-    const menu = await Menu.new({
-      items: [
-        await MenuItem.new({ text: "⚙️  Settings",      action: () => { invoke("open_settings").catch(console.error); } }),
-        await PredefinedMenuItem.new({ item: "Separator" }),
-        await MenuItem.new({ text: "Quit VaaniFlow",     action: () => { invoke("quit_app").catch(console.error); } }),
-      ],
-    });
-    await menu.popup();
+    e.stopPropagation();
+    setCtxMenu({ x: e.clientX, y: e.clientY });
   }
+
+  function handleCtxAction(action: "settings" | "quit") {
+    setCtxMenu(null);
+    if (action === "settings") {
+      invoke("open_settings").catch(console.error);
+    } else {
+      invoke("quit_app").catch(console.error);
+    }
+  }
+
+  // Dismiss context menu on click-away
+  useEffect(() => {
+    if (!ctxMenu) return;
+    const dismiss = () => setCtxMenu(null);
+    window.addEventListener("click", dismiss);
+    return () => window.removeEventListener("click", dismiss);
+  }, [ctxMenu]);
 
   // Bubble expands into a pill when recording to show the waveform
   const isRecording = state === "recording";
@@ -216,8 +228,9 @@ export default function BubbleApp() {
   return (
     <div style={{
       width: "100%", height: "100%",
-      display: "flex", alignItems: "center", justifyContent: "center",
+      display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "flex-end",
       background: "transparent", position: "relative",
+      paddingBottom: 30,
     }}>
 
       {/* Double pulse rings when recording */}
@@ -261,15 +274,15 @@ export default function BubbleApp() {
         )}
 
         {state === "processing" && <Spinner />}
-        {state === "done"       && <span style={{ fontSize: 26 }}>✓</span>}
-        {state === "error"      && <span style={{ fontSize: 22 }}>✕</span>}
-        {(state === "idle" || state === "ready") && <span style={{ fontSize: 26 }}>🎙️</span>}
+        {state === "done"       && <IconCheck size={26} stroke={2} color="white" />}
+        {state === "error"      && <IconX size={22} stroke={2} color="white" />}
+        {(state === "idle" || state === "ready") && <IconMicrophone size={26} stroke={1.5} color="white" />}
       </div>
 
       {/* Tooltip below bubble */}
-      {tooltip && (
+      {tooltip && !ctxMenu && (
         <div style={{
-          position: "absolute", bottom: -30,
+          position: "absolute", bottom: 0,
           left: "50%", transform: "translateX(-50%)",
           background: "rgba(0,0,0,0.80)",
           color: "rgba(255,255,255,0.92)",
@@ -280,6 +293,61 @@ export default function BubbleApp() {
           backdropFilter: "blur(8px)", pointerEvents: "none",
         }}>
           {tooltip}
+        </div>
+      )}
+
+      {/* Custom right-click context menu */}
+      {ctxMenu && (
+        <div
+          onClick={(e) => e.stopPropagation()}
+          style={{
+            position: "absolute",
+            bottom: 96,
+            left: "50%",
+            transform: "translateX(-50%)",
+            background: "rgba(18, 24, 36, 0.96)",
+            border: "1px solid rgba(255,255,255,0.12)",
+            borderRadius: 10,
+            padding: "4px 0",
+            minWidth: 164,
+            boxShadow: "0 8px 32px rgba(0,0,0,0.6), 0 0 0 1px rgba(255,255,255,0.05)",
+            backdropFilter: "blur(20px)",
+            WebkitBackdropFilter: "blur(20px)",
+            zIndex: 9999,
+            animation: "pop-in 0.15s ease-out",
+          }}
+        >
+          <button
+            onClick={() => handleCtxAction("settings")}
+            style={{
+              display: "flex", alignItems: "center", gap: 10,
+              padding: "8px 14px", margin: "0 4px",
+              background: "none", border: "none",
+              color: "rgba(255,255,255,0.88)",
+              fontSize: 13, fontFamily: "inherit", cursor: "pointer",
+              borderRadius: 6, width: "calc(100% - 8px)",
+            }}
+            onMouseEnter={(e) => (e.currentTarget.style.background = "rgba(255,255,255,0.08)")}
+            onMouseLeave={(e) => (e.currentTarget.style.background = "none")}
+          >
+            <IconSettings size={15} stroke={1.5} /> Settings
+          </button>
+          <div style={{ height: 1, background: "rgba(255,255,255,0.08)", margin: "4px 12px" }} />
+          <button
+            onClick={() => handleCtxAction("quit")}
+            style={{
+              display: "flex", alignItems: "center", gap: 10,
+              padding: "8px 14px", margin: "0 4px",
+              background: "none", border: "none",
+              color: "rgba(239,68,68,0.9)",
+              fontSize: 13, fontFamily: "inherit", cursor: "pointer",
+              borderRadius: 6, width: "calc(100% - 8px)",
+            }}
+            onMouseEnter={(e) => (e.currentTarget.style.background = "rgba(239,68,68,0.08)")}
+            onMouseLeave={(e) => (e.currentTarget.style.background = "none")}
+          >
+            <IconPower size={15} stroke={1.5} /> Quit VaaniFlow
+          </button>
         </div>
       )}
     </div>

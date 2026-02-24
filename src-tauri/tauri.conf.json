@@ -29,9 +29,9 @@
         "title": "VaaniFlow",
         "url": "bubble.html",
         "width": 200,
-        "height": 120,
+        "height": 260,
         "minWidth": 200,
-        "minHeight": 120,
+        "minHeight": 260,
         "resizable": false,
         "decorations": false,
         "transparent": true,
@@ -41,12 +41,7 @@
         "visible": true,
         "focus": false
       }
-    ],
-    "trayIcon": {
-      "iconPath": "icons/icon.png",
-      "iconAsTemplate": true,
-      "tooltip": "VaaniFlow — Click a text field to start"
-    }
+    ]
   },
   "bundle": {
     "active": true,
