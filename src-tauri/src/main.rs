@@ -207,6 +207,9 @@ fn paste_text(app: &AppHandle, text: &str) -> Result<(), String> {
         .write_text(text)
         .map_err(|e| e.to_string())?;
 
+    // Brief pause to let the target app regain focus before simulating Ctrl+V
+    std::thread::sleep(std::time::Duration::from_millis(100));
+
     // Simulate paste keystroke
     simulate_paste();
     Ok(())

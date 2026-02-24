@@ -66,10 +66,17 @@ async fn curl_multipart_post(
 
     log::info!("curl POST {} with {} form fields", url, fields.len() + 1);
 
-    let output = tokio::process::Command::new("curl")
-        .args(&args)
-        .output()
-        .await?;
+    let mut cmd = tokio::process::Command::new("curl");
+    cmd.args(&args);
+
+    // Hide the console window that curl would otherwise spawn on Windows
+    #[cfg(target_os = "windows")]
+    {
+        const CREATE_NO_WINDOW: u32 = 0x08000000;
+        cmd.creation_flags(CREATE_NO_WINDOW);
+    }
+
+    let output = cmd.output().await?;
 
     let stdout = String::from_utf8_lossy(&output.stdout).into_owned();
     let stderr = String::from_utf8_lossy(&output.stderr);
