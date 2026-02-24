@@ -249,7 +249,7 @@ fn open_settings_inner(app: &AppHandle) -> Result<(), String> {
             let url = tauri::WebviewUrl::App("index.html".into());
             tauri::WebviewWindowBuilder::new(app, "settings", url)
                 .title("VaaniFlow — Settings")
-                .inner_size(560.0, 640.0)
+                .inner_size(560.0, 600.0)
                 .resizable(false)
                 .decorations(true)
                 .center()

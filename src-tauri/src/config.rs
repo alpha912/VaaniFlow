@@ -12,7 +12,7 @@ pub struct Config {
     pub source_language: String,
     /// "same" = no translation, or target BCP-47 code
     pub target_language: String,
-    /// e.g. "ctrl+shift+space" or "cmd+shift+v"
+    /// e.g. "Ctrl+Shift+Space" or "Cmd+Shift+V"
     pub hotkey: String,
     /// Microphone device name, or "default" to use system default
     #[serde(default = "default_microphone")]
@@ -29,7 +29,7 @@ impl Default for Config {
             api_key: String::new(),
             source_language: "auto".to_string(),
             target_language: "same".to_string(),
-            hotkey: "ctrl+shift+space".to_string(),
+            hotkey: "Ctrl+Shift+Space".to_string(),
             microphone: "default".to_string(),
         }
     }
@@ -42,6 +42,21 @@ fn config_path() -> PathBuf {
     path
 }
 
+/// Normalize hotkey string to title case segments (e.g. "ctrl+shift+space" → "Ctrl+Shift+Space")
+fn normalize_hotkey(hotkey: &str) -> String {
+    hotkey
+        .split('+')
+        .map(|part| {
+            let mut chars = part.trim().chars();
+            match chars.next() {
+                Some(c) => c.to_uppercase().to_string() + &chars.as_str().to_lowercase(),
+                None => String::new(),
+            }
+        })
+        .collect::<Vec<_>>()
+        .join("+")
+}
+
 pub fn load() -> Result<Config, Box<dyn std::error::Error>> {
     let path = config_path();
     let mut config = if path.exists() {
@@ -50,6 +65,9 @@ pub fn load() -> Result<Config, Box<dyn std::error::Error>> {
     } else {
         Config::default()
     };
+
+    // Normalize hotkey casing (fixes old configs saved as lowercase)
+    config.hotkey = normalize_hotkey(&config.hotkey);
 
     // Dev-only: if no API key saved, try reading from .env.development
     if config.api_key.is_empty() {
