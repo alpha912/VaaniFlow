@@ -106,7 +106,7 @@ export default function App() {
               fontSize: 11, fontWeight: 500, color: "var(--text-muted)",
               background: "var(--bg2)", border: "1px solid var(--border)",
               borderRadius: 6, padding: "1px 8px",
-            }}>v0.1</span>
+            }}>v0.2</span>
           </div>
           <p style={{ fontSize: 13, color: "var(--text-muted)", marginTop: 1 }}>
             Speak any language. Flow anywhere.
