@@ -14,6 +14,7 @@
   <a href="https://www.rust-lang.org/"><img src="https://img.shields.io/badge/Rust-2021-DEA584?style=flat-square&logo=rust&logoColor=white" alt="Rust" /></a>
   <a href="https://react.dev/"><img src="https://img.shields.io/badge/React-19-61DAFB?style=flat-square&logo=react&logoColor=black" alt="React 19" /></a>
   <a href="https://www.sarvam.ai/"><img src="https://img.shields.io/badge/API-Sarvam%20AI-E8671A?style=flat-square" alt="Sarvam AI" /></a>
+  <a href="https://github.com/alpha912/VaaniFlow/actions/workflows/ci.yml"><img src="https://img.shields.io/github/actions/workflow/status/alpha912/VaaniFlow/ci.yml?style=flat-square&label=CI" alt="CI" /></a>
 </p>
 
 <p align="center">

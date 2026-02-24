@@ -4,6 +4,9 @@ version = "0.1.0"
 edition = "2021"
 description = "Speak any Indian language. Flow anywhere."
 license = "MIT"
+authors = ["Alphin Tom <alphinctom@gmail.com>"]
+repository = "https://github.com/alpha912/VaaniFlow"
+homepage = "https://github.com/alpha912/VaaniFlow"
 
 [build-dependencies]
 tauri-build = { version = "2", features = [] }

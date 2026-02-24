@@ -4,3 +4,15 @@ target/
 .env*
 !.env.example
 *.log
+
+# OS metadata
+.DS_Store
+Thumbs.db
+Desktop.ini
+
+# Editor / IDE
+.vscode/
+.idea/
+*.vsix
+*.swp
+*~

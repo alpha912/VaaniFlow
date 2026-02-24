@@ -3,6 +3,15 @@
   "version": "0.1.0",
   "description": "Speak any Indian language. Flow anywhere.",
   "license": "MIT",
+  "author": "Alphin Tom <alphinctom@gmail.com>",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/alpha912/VaaniFlow.git"
+  },
+  "homepage": "https://github.com/alpha912/VaaniFlow",
+  "bugs": {
+    "url": "https://github.com/alpha912/VaaniFlow/issues"
+  },
   "scripts": {
     "dev": "vite",
     "build": "vite build",
