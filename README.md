@@ -52,7 +52,7 @@ flowchart TD
 
 | Layer | Technology |
 | :------ | :----------- |
-| **Frontend** | React 19, TypeScript 5, Vite 7 |
+| **Frontend** | React 19, TypeScript 5, Vite 7, Tabler Icons |
 | **Backend** | Rust (2021 edition), Tauri v2 |
 | **Audio** | cpal capture, hound WAV, 16kHz resampling |
 | **Speech-to-Text** | Sarvam Saaras v3 |
@@ -107,7 +107,7 @@ cargo tauri build
 
 ### Settings
 
-Right-click the bubble **> Settings** to configure:
+Right-click the bubble or system tray icon **> Settings** to configure:
 
 | Setting | Description |
 | :-------- | :------------ |
@@ -239,7 +239,6 @@ PRs are welcome! Here are some areas that need work:
 - **Linux support** — AT-SPI2 text-field detection
 - **Streaming STT** — WebSocket-based real-time transcription
 - **Custom vocabulary** — Personal dictionary sync
-- **Waveform visualisation** — Better recording feedback
 
 ## License
 
