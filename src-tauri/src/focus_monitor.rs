@@ -29,12 +29,7 @@ fn run_macos(app: AppHandle) {
     use std::time::Duration;
 
     // AX roles that count as "text field"
-    const TEXT_ROLES: &[&str] = &[
-        "AXTextField",
-        "AXTextArea",
-        "AXSearchField",
-        "AXComboBox",
-    ];
+    const TEXT_ROLES: &[&str] = &["AXTextField", "AXTextArea", "AXSearchField", "AXComboBox"];
 
     let mut last_was_text = false;
 
@@ -79,9 +74,12 @@ end tell
 "#;
 
     let Ok(out) = std::process::Command::new("osascript")
-        .arg("-e").arg(script)
+        .arg("-e")
+        .arg(script)
         .output()
-    else { return false; };
+    else {
+        return false;
+    };
 
     let role = String::from_utf8_lossy(&out.stdout);
     let role = role.trim();
@@ -104,8 +102,10 @@ end tell
 "#;
 
     let out = std::process::Command::new("osascript")
-        .arg("-e").arg(script)
-        .output().ok()?;
+        .arg("-e")
+        .arg(script)
+        .output()
+        .ok()?;
 
     let s = String::from_utf8_lossy(&out.stdout);
     let s = s.trim();
@@ -124,26 +124,26 @@ fn run_windows(app: AppHandle) {
     // Window class names that indicate a text-input control.
     // Uses `contains` matching, so "Edit" also matches "RichEdit20W" etc.
     const TEXT_CLASSES: &[&str] = &[
-        "Edit",                        // Standard Win32 edit + matches RichEdit*
-        "RICHEDIT",                    // RichEdit variants (case-insensitive via contains)
-        "RichEditD2DPT",               // Chrome address bar / modern Office
-        "Chrome_RenderWidgetHostHWND", // Chrome / Edge / Electron render widget
-        "Chrome_WidgetWin",            // Chrome / Electron top-level (VS Code, Slack, etc.)
-        "MozillaWindowClass",          // Firefox content area
-        "Scintilla",                   // Notepad++, VS Code legacy, many code editors
-        "Internet Explorer_Server",    // Legacy IE / Edge / embedded web controls
-        "_WwG",                        // Microsoft Word editing surface
-        "EXCEL7",                      // Excel cell editing
-        "_WwB",                        // Word/Outlook compose body
-        "Afx:RichEdit",               // MFC rich-edit controls
-        "TextBoxView",                 // WPF TextBox
-        "RichTextBox",                 // WPF RichTextBox
+        "Edit",                          // Standard Win32 edit + matches RichEdit*
+        "RICHEDIT",                      // RichEdit variants (case-insensitive via contains)
+        "RichEditD2DPT",                 // Chrome address bar / modern Office
+        "Chrome_RenderWidgetHostHWND",   // Chrome / Edge / Electron render widget
+        "Chrome_WidgetWin",              // Chrome / Electron top-level (VS Code, Slack, etc.)
+        "MozillaWindowClass",            // Firefox content area
+        "Scintilla",                     // Notepad++, VS Code legacy, many code editors
+        "Internet Explorer_Server",      // Legacy IE / Edge / embedded web controls
+        "_WwG",                          // Microsoft Word editing surface
+        "EXCEL7",                        // Excel cell editing
+        "_WwB",                          // Word/Outlook compose body
+        "Afx:RichEdit",                  // MFC rich-edit controls
+        "TextBoxView",                   // WPF TextBox
+        "RichTextBox",                   // WPF RichTextBox
         "CASCADIA_HOSTING_WINDOW_CLASS", // Windows Terminal
-        "ConsoleWindowClass",          // Legacy CMD / PowerShell
-        "TermControl",                 // Modern Windows Terminal input
-        "Wpf",                         // Generic WPF controls
-        "Xaml",                        // UWP / WinUI XAML controls
-        "InputSite",                   // Windows.UI.Input.InputSite
+        "ConsoleWindowClass",            // Legacy CMD / PowerShell
+        "TermControl",                   // Modern Windows Terminal input
+        "Wpf",                           // Generic WPF controls
+        "Xaml",                          // UWP / WinUI XAML controls
+        "InputSite",                     // Windows.UI.Input.InputSite
     ];
 
     let mut last_was_text = false;
@@ -156,7 +156,7 @@ fn run_windows(app: AppHandle) {
 
         // Log every ~5 seconds (25 polls × 200ms) to avoid flooding
         poll_count += 1;
-        if poll_count % 25 == 0 {
+        if poll_count.is_multiple_of(25) {
             log::debug!("focus_monitor: class={class_name:?} is_text={is_text}");
         }
 
@@ -186,7 +186,7 @@ fn run_windows(app: AppHandle) {
 #[cfg(target_os = "windows")]
 fn windows_focused_class_check(text_classes: &[&str]) -> (bool, String) {
     use windows::Win32::UI::WindowsAndMessaging::{
-        GetForegroundWindow, GetGUIThreadInfo, GetClassNameW, GetWindowThreadProcessId,
+        GetClassNameW, GetForegroundWindow, GetGUIThreadInfo, GetWindowThreadProcessId,
         GUITHREADINFO,
     };
 
@@ -230,7 +230,9 @@ fn windows_focused_class_check(text_classes: &[&str]) -> (bool, String) {
         let class = String::from_utf16_lossy(&buf[..len as usize]);
         // Case-insensitive contains check for broader matching
         let class_lower = class.to_lowercase();
-        let is_text = text_classes.iter().any(|&c| class_lower.contains(&c.to_lowercase()));
+        let is_text = text_classes
+            .iter()
+            .any(|&c| class_lower.contains(&c.to_lowercase()));
         (is_text, class)
     }
 }
@@ -245,7 +247,9 @@ fn run_linux_stub(_app: AppHandle) {
     // In the meantime VaaniFlow on Linux works perfectly via the global
     // hotkey — the bubble just stays fixed in the corner rather than
     // jumping to the active text field.
-    log::info!("VaaniFlow: Linux text-field detection not yet implemented. Use the hotkey to record.");
+    log::info!(
+        "VaaniFlow: Linux text-field detection not yet implemented. Use the hotkey to record."
+    );
 
     loop {
         std::thread::sleep(std::time::Duration::from_secs(60));

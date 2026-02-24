@@ -96,7 +96,9 @@ async fn stop_recording(
                 .args(["/C", "start", "ms-settings:privacy-microphone"])
                 .spawn();
         }
-        return Err("Microphone returned silence. Please enable microphone access and try again.".into());
+        return Err(
+            "Microphone returned silence. Please enable microphone access and try again.".into(),
+        );
     }
 
     // Get current config
@@ -149,7 +151,10 @@ async fn transcribe_and_paste(
     config: &config::Config,
 ) -> Result<String, String> {
     let wav_bytes = audio::encode_wav(audio, sample_rate).map_err(|e| e.to_string())?;
-    log::info!("WAV encoded: {} bytes (resampled to 16kHz)", wav_bytes.len());
+    log::info!(
+        "WAV encoded: {} bytes (resampled to 16kHz)",
+        wav_bytes.len()
+    );
 
     if config.target_language == "en-IN" {
         // English output → Saaras v3 mode=translate (single call)
@@ -215,9 +220,13 @@ fn simulate_paste() {
 
     let hold_key = {
         #[cfg(target_os = "macos")]
-        { Key::MetaLeft } // Cmd on macOS
+        {
+            Key::MetaLeft
+        } // Cmd on macOS
         #[cfg(not(target_os = "macos"))]
-        { Key::ControlLeft } // Ctrl on Windows/Linux
+        {
+            Key::ControlLeft
+        } // Ctrl on Windows/Linux
     };
 
     let _ = simulate(&EventType::KeyPress(hold_key));
@@ -256,7 +265,9 @@ async fn quit_app(app: AppHandle) {
 // ─── Hotkey registration ─────────────────────────────────────────────────────
 
 fn register_hotkey(app: &AppHandle, hotkey_str: &str) -> Result<(), String> {
-    let shortcut: Shortcut = hotkey_str.parse().map_err(|_| format!("Invalid hotkey: {hotkey_str}"))?;
+    let shortcut: Shortcut = hotkey_str
+        .parse()
+        .map_err(|_| format!("Invalid hotkey: {hotkey_str}"))?;
 
     // Unregister all existing shortcuts first
     let _ = app.global_shortcut().unregister_all();
@@ -297,32 +308,28 @@ fn init_logging() {
             .open(&log_path)
         {
             let file = std::sync::Mutex::new(file);
-            env_logger::Builder::from_env(
-                env_logger::Env::default().default_filter_or("info"),
-            )
-            .format(move |buf, record| {
-                let msg = format!(
-                    "[{} {}] {}\n",
-                    record.level(),
-                    record.target(),
-                    record.args()
-                );
-                let _ = buf.write_all(msg.as_bytes());
-                if let Ok(mut f) = file.lock() {
-                    let _ = f.write_all(msg.as_bytes());
-                    let _ = f.flush();
-                }
-                Ok(())
-            })
-            .init();
+            env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("info"))
+                .format(move |buf, record| {
+                    let msg = format!(
+                        "[{} {}] {}\n",
+                        record.level(),
+                        record.target(),
+                        record.args()
+                    );
+                    let _ = buf.write_all(msg.as_bytes());
+                    if let Ok(mut f) = file.lock() {
+                        let _ = f.write_all(msg.as_bytes());
+                        let _ = f.flush();
+                    }
+                    Ok(())
+                })
+                .init();
             return;
         }
     }
 
     // Fallback: normal env_logger
-    env_logger::Builder::from_env(
-        env_logger::Env::default().default_filter_or("info"),
-    ).init();
+    env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("info")).init();
 }
 
 fn main() {

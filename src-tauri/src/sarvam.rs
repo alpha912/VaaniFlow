@@ -50,10 +50,13 @@ async fn curl_multipart_post(
 
     let mut args = vec![
         "-s".to_string(),
-        "-X".to_string(), "POST".to_string(),
+        "-X".to_string(),
+        "POST".to_string(),
         url.to_string(),
-        "-H".to_string(), format!("api-subscription-key: {api_key}"),
-        "-F".to_string(), format!("file=@{}", tmp_path.display()),
+        "-H".to_string(),
+        format!("api-subscription-key: {api_key}"),
+        "-F".to_string(),
+        format!("file=@{}", tmp_path.display()),
     ];
 
     for (name, value) in fields {
@@ -87,7 +90,11 @@ async fn curl_multipart_post(
             return Err(format!("API error: {err}").into());
         }
     } else {
-        return Err(format!("API returned non-JSON: {}", stdout.chars().take(200).collect::<String>()).into());
+        return Err(format!(
+            "API returned non-JSON: {}",
+            stdout.chars().take(200).collect::<String>()
+        )
+        .into());
     }
 
     Ok(stdout)
@@ -111,12 +118,14 @@ pub async fn speech_to_text(
     mode: SttMode,
 ) -> Result<SttResponse, Box<dyn std::error::Error + Send + Sync>> {
     let mode_str = mode.as_str();
-    log::info!("Calling Saaras v3 STT: {} bytes, lang={}, mode={}", wav_bytes.len(), language_code, mode_str);
+    log::info!(
+        "Calling Saaras v3 STT: {} bytes, lang={}, mode={}",
+        wav_bytes.len(),
+        language_code,
+        mode_str
+    );
 
-    let mut fields: Vec<(&str, &str)> = vec![
-        ("model", "saaras:v3"),
-        ("mode", mode_str),
-    ];
+    let mut fields: Vec<(&str, &str)> = vec![("model", "saaras:v3"), ("mode", mode_str)];
 
     if language_code != "auto" {
         fields.push(("language_code", language_code));
@@ -124,7 +133,12 @@ pub async fn speech_to_text(
 
     let json = curl_multipart_post(STT_ENDPOINT, api_key, &wav_bytes, &fields).await?;
     let result: SttResponse = serde_json::from_str(&json)?;
-    log::info!("Saaras v3 ({:?}, {}) → \"{}\"", result.language_code, mode_str, result.transcript);
+    log::info!(
+        "Saaras v3 ({:?}, {}) → \"{}\"",
+        result.language_code,
+        mode_str,
+        result.transcript
+    );
     Ok(result)
 }
 
@@ -151,7 +165,12 @@ pub async fn translate(
     source_lang: &str,
     target_lang: &str,
 ) -> Result<String, Box<dyn std::error::Error + Send + Sync>> {
-    log::info!("Translate: {} → {} (\"{}\")", source_lang, target_lang, text);
+    log::info!(
+        "Translate: {} → {} (\"{}\")",
+        source_lang,
+        target_lang,
+        text
+    );
 
     let body = TranslateRequest {
         input: text,

@@ -21,7 +21,10 @@ impl Recorder {
     }
 
     /// Begin capturing from the specified or default input device
-    pub fn start(&mut self, microphone: &str) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+    pub fn start(
+        &mut self,
+        microphone: &str,
+    ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         {
             let mut s = self.samples.lock().unwrap();
             s.clear();
@@ -43,11 +46,7 @@ impl Recorder {
         } else {
             available
                 .into_iter()
-                .find(|d| {
-                    d.name()
-                        .map(|n| n.contains(microphone))
-                        .unwrap_or(false)
-                })
+                .find(|d| d.name().map(|n| n.contains(microphone)).unwrap_or(false))
                 .ok_or_else(|| format!("Microphone '{}' not found. Check Settings.", microphone))?
         };
 
@@ -56,8 +55,12 @@ impl Recorder {
 
         // Use device's default config to avoid format mismatch issues
         let default_config = device.default_input_config()?;
-        log::info!("Using config: {}Hz, {} ch, {:?}",
-            default_config.sample_rate().0, default_config.channels(), default_config.sample_format());
+        log::info!(
+            "Using config: {}Hz, {} ch, {:?}",
+            default_config.sample_rate().0,
+            default_config.channels(),
+            default_config.sample_format()
+        );
         let config: cpal::StreamConfig = default_config.into();
 
         self.sample_rate = config.sample_rate.0;
@@ -80,7 +83,11 @@ impl Recorder {
 
         stream.play()?;
         self.stream = Some(stream);
-        log::info!("Recording started at {}Hz, {} channels", self.sample_rate, channels);
+        log::info!(
+            "Recording started at {}Hz, {} channels",
+            self.sample_rate,
+            channels
+        );
         Ok(())
     }
 
@@ -97,7 +104,11 @@ impl Recorder {
             let rms = (samples.iter().map(|s| s * s).sum::<f32>() / samples.len() as f32).sqrt();
             log::info!(
                 "Recording stopped. {} samples ({:.1}s) at {}Hz — max={:.4} rms={:.4}",
-                samples.len(), samples.len() as f32 / rate as f32, rate, max_amp, rms
+                samples.len(),
+                samples.len() as f32 / rate as f32,
+                rate,
+                max_amp,
+                rms
             );
         } else {
             log::info!("Recording stopped. 0 samples");
@@ -132,7 +143,9 @@ pub fn encode_wav(
         let resampled = resample(&samples, sample_rate, 16000);
         log::info!(
             "Resampled {}Hz → 16000Hz ({} → {} samples)",
-            sample_rate, samples.len(), resampled.len()
+            sample_rate,
+            samples.len(),
+            resampled.len()
         );
         (resampled, 16000)
     } else {
