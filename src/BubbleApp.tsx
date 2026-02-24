@@ -2,7 +2,7 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
-import { Menu, MenuItem } from "@tauri-apps/api/menu";
+import { Menu, MenuItem, PredefinedMenuItem } from "@tauri-apps/api/menu";
 
 type State = "idle" | "ready" | "recording" | "processing" | "done" | "error";
 
@@ -112,47 +112,68 @@ export default function BubbleApp() {
   const [transcript, setTranscript] = useState("");
   const [errorMsg, setErrorMsg] = useState("");
   const stateRef = useRef<State>("idle");
+  const resetTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // Keep ref in sync so hotkey listener always sees latest state
-  useEffect(() => { stateRef.current = state; }, [state]);
+  // Update both state and ref synchronously so hotkey listener
+  // always sees the latest value (useEffect would defer the ref update)
+  const setStateSync = useCallback((newState: State | ((prev: State) => State)) => {
+    setState((prev) => {
+      const next = typeof newState === "function" ? newState(prev) : newState;
+      stateRef.current = next;
+      return next;
+    });
+  }, []);
 
   useEffect(() => {
     const uns = [
-      listen("text-field-focused",  () => setState((s) => s === "idle" ? "ready" : s)),
-      listen("text-field-blurred",  () => setState((s) => s === "ready" ? "idle" : s)),
-      listen("recording-started",   () => setState("recording")),
-      listen("recording-stopped",   () => setState("processing")),
+      listen("text-field-focused",  () => setStateSync((s) => s === "idle" ? "ready" : s)),
+      listen("text-field-blurred",  () => setStateSync((s) => s === "ready" ? "idle" : s)),
+      listen("recording-started",   () => setStateSync("recording")),
+      listen("recording-stopped",   () => setStateSync("processing")),
       listen("hotkey-triggered",    () => {
         const s = stateRef.current;
         if (s === "idle" || s === "ready") {
           invoke("start_recording").catch(console.error);
-          setState("recording");
+          setStateSync("recording");
         } else if (s === "recording") {
           invoke("stop_recording").catch(console.error);
-          setState("processing");
+          setStateSync("processing");
         }
       }),
       listen<string>("transcription-done",  (e) => {
+        if (resetTimerRef.current) clearTimeout(resetTimerRef.current);
         setTranscript(e.payload);
-        setState("done");
-        setTimeout(() => { setState("idle"); setTranscript(""); }, 2200);
+        setStateSync("done");
+        resetTimerRef.current = setTimeout(() => {
+          setStateSync("idle");
+          setTranscript("");
+          resetTimerRef.current = null;
+        }, 2200);
       }),
       listen<string>("transcription-error", (e) => {
+        if (resetTimerRef.current) clearTimeout(resetTimerRef.current);
         setErrorMsg(e.payload);
-        setState("error");
-        setTimeout(() => { setState("idle"); setErrorMsg(""); }, 3200);
+        setStateSync("error");
+        resetTimerRef.current = setTimeout(() => {
+          setStateSync("idle");
+          setErrorMsg("");
+          resetTimerRef.current = null;
+        }, 3200);
       }),
     ];
-    return () => uns.forEach((p) => p.then((f) => f()));
-  }, []);
+    return () => {
+      uns.forEach((p) => p.then((f) => f()));
+      if (resetTimerRef.current) clearTimeout(resetTimerRef.current);
+    };
+  }, [setStateSync]);
 
   function handleClick() {
     if (state === "idle" || state === "ready") {
       invoke("start_recording").catch(console.error);
-      setState("recording");
+      setStateSync("recording");
     } else if (state === "recording") {
       invoke("stop_recording").catch(console.error);
-      setState("processing");
+      setStateSync("processing");
     }
   }
 
@@ -160,9 +181,9 @@ export default function BubbleApp() {
     e.preventDefault();
     const menu = await Menu.new({
       items: [
-        await MenuItem.new({ text: "⚙️  Settings",      action: () => invoke("open_settings") }),
-        await MenuItem.new({ id: "sep", text: "",         kind: "Separator" as any }),
-        await MenuItem.new({ text: "Quit VaaniFlow",     action: () => invoke("quit_app") }),
+        await MenuItem.new({ text: "⚙️  Settings",      action: () => { invoke("open_settings").catch(console.error); } }),
+        await PredefinedMenuItem.new({ item: "Separator" }),
+        await MenuItem.new({ text: "Quit VaaniFlow",     action: () => { invoke("quit_app").catch(console.error); } }),
       ],
     });
     await menu.popup();
@@ -186,6 +207,7 @@ export default function BubbleApp() {
   const tooltip =
     state === "idle"       ? "Click a text field to start" :
     state === "ready"      ? "Click to record" :
+    state === "recording"  ? "Click to stop" :
     state === "processing" ? "Transcribing…" :
     state === "done"       ? (transcript ? `"${transcript.slice(0, 32)}${transcript.length > 32 ? "…" : ""}"` : "Done!") :
     state === "error"      ? errorMsg.slice(0, 48) :

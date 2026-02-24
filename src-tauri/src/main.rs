@@ -88,7 +88,7 @@ async fn stop_recording(
 
     // Detect silent audio (microphone permissions likely blocked)
     let max_amp = audio_data.iter().map(|s| s.abs()).fold(0.0_f32, f32::max);
-    if max_amp == 0.0 {
+    if max_amp < 1e-4 {
         // Try to open Windows microphone privacy settings
         #[cfg(target_os = "windows")]
         {
@@ -112,7 +112,10 @@ async fn stop_recording(
     // Spawn async transcription so we don't block the command
     let app_clone = app.clone();
     tauri::async_runtime::spawn(async move {
-        let bubble = app_clone.get_webview_window("bubble").unwrap();
+        let Some(bubble) = app_clone.get_webview_window("bubble") else {
+            log::error!("Bubble window not found during transcription callback");
+            return;
+        };
 
         match transcribe_and_paste(&app_clone, audio_data, sample_rate, &config).await {
             Ok(text) => {
@@ -162,13 +165,12 @@ async fn transcribe_and_paste(
         Ok(result.transcript)
     } else {
         // Transcribe first (original language)
-        let stt_mode = sarvam::SttMode::Transcribe;
         log::info!("Route: Saaras v3 transcribe");
         let stt_result = sarvam::speech_to_text(
             &config.api_key,
             wav_bytes,
             &config.source_language,
-            stt_mode,
+            sarvam::SttMode::Transcribe,
         )
         .await
         .map_err(|e| e.to_string())?;
@@ -209,9 +211,6 @@ fn paste_text(app: &AppHandle, text: &str) -> Result<(), String> {
 fn simulate_paste() {
     use rdev::{simulate, EventType, Key};
 
-    #[cfg(target_os = "macos")]
-    let paste_key = Key::KeyV;
-    #[cfg(not(target_os = "macos"))]
     let paste_key = Key::KeyV;
 
     let hold_key = {
@@ -268,7 +267,10 @@ fn register_hotkey(app: &AppHandle, hotkey_str: &str) -> Result<(), String> {
             // Toggle recording via hotkey
             let app = app_clone.clone();
             tauri::async_runtime::spawn(async move {
-                let bubble = app.get_webview_window("bubble").unwrap();
+                let Some(bubble) = app.get_webview_window("bubble") else {
+                    log::error!("Bubble window not found during hotkey handler");
+                    return;
+                };
                 // We emit to the bubble and it handles the toggle logic
                 let _ = bubble.emit("hotkey-triggered", ());
             });
@@ -334,7 +336,6 @@ fn main() {
     tauri::Builder::default()
         .plugin(tauri_plugin_global_shortcut::Builder::new().build())
         .plugin(tauri_plugin_clipboard_manager::init())
-        .plugin(tauri_plugin_shell::init())
         .manage(config_state)
         .manage(recording_state)
         .invoke_handler(tauri::generate_handler![
@@ -353,11 +354,30 @@ fn main() {
             // Register hotkey from saved config
             let hotkey = {
                 let cfg = app.state::<ConfigState>();
-                let hotkey = cfg.0.lock().unwrap().hotkey.clone();
-                hotkey
+                let lock_result = cfg.0.lock();
+                match lock_result {
+                    Ok(guard) => guard.hotkey.clone(),
+                    Err(poisoned) => {
+                        log::warn!("Config mutex was poisoned, using poisoned value");
+                        poisoned.into_inner().hotkey.clone()
+                    }
+                }
             };
             if let Err(e) = register_hotkey(&app_handle, &hotkey) {
                 log::warn!("Could not register hotkey '{hotkey}': {e}");
+            }
+
+            // Position the bubble at the bottom-right of the primary monitor
+            if let Some(bubble) = app_handle.get_webview_window("bubble") {
+                if let Ok(Some(monitor)) = bubble.primary_monitor() {
+                    let screen = monitor.size();
+                    let scale = monitor.scale_factor();
+                    let phys_w = screen.width as f64;
+                    let phys_h = screen.height as f64;
+                    let x = (phys_w - 220.0 * scale).max(0.0) as i32;
+                    let y = (phys_h - 160.0 * scale).max(0.0) as i32;
+                    let _ = bubble.set_position(tauri::PhysicalPosition::new(x, y));
+                }
             }
 
             // Start background thread to monitor text-field focus across apps

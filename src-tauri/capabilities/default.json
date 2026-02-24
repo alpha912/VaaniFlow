@@ -12,7 +12,6 @@
     "core:window:allow-set-focus",
     "global-shortcut:allow-register",
     "global-shortcut:allow-unregister",
-    "clipboard-manager:allow-write-text",
-    "shell:allow-open"
+    "clipboard-manager:allow-write-text"
   ]
 }

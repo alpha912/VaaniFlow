@@ -88,7 +88,7 @@ impl Recorder {
     pub fn stop(&mut self) -> Result<(Vec<f32>, u32), Box<dyn std::error::Error + Send + Sync>> {
         drop(self.stream.take());
 
-        let samples = self.samples.lock().unwrap().clone();
+        let samples = std::mem::take(&mut *self.samples.lock().unwrap());
         let rate = self.sample_rate;
 
         // Log audio amplitude stats for debugging

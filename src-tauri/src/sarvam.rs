@@ -3,11 +3,16 @@
 
 use reqwest::Client;
 use serde::Deserialize;
+use std::sync::LazyLock;
 
 const STT_ENDPOINT: &str = "https://api.sarvam.ai/speech-to-text";
 const TRANSLATE_ENDPOINT: &str = "https://api.sarvam.ai/translate";
 
+/// Shared HTTP client (reuses connection pool across calls)
+static HTTP_CLIENT: LazyLock<Client> = LazyLock::new(Client::new);
+
 /// Saaras v3 output modes (via `mode` form field)
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum SttMode {
     /// Standard transcription in original language
     Transcribe,
@@ -24,6 +29,14 @@ impl SttMode {
     }
 }
 
+/// RAII guard to ensure temp file cleanup even on early return
+struct TempFileGuard(std::path::PathBuf);
+impl Drop for TempFileGuard {
+    fn drop(&mut self) {
+        let _ = std::fs::remove_file(&self.0);
+    }
+}
+
 /// POST a file via curl -F (reqwest multipart doesn't work with Sarvam's parser).
 async fn curl_multipart_post(
     url: &str,
@@ -31,8 +44,9 @@ async fn curl_multipart_post(
     wav_bytes: &[u8],
     fields: &[(&str, &str)],
 ) -> Result<String, Box<dyn std::error::Error + Send + Sync>> {
-    let tmp_path = std::env::temp_dir().join("vaani_audio.wav");
+    let tmp_path = std::env::temp_dir().join(format!("vaani_audio_{}.wav", std::process::id()));
     std::fs::write(&tmp_path, wav_bytes)?;
+    let _guard = TempFileGuard(tmp_path.clone());
 
     let mut args = vec![
         "-s".to_string(),
@@ -54,8 +68,6 @@ async fn curl_multipart_post(
         .output()
         .await?;
 
-    let _ = std::fs::remove_file(&tmp_path);
-
     let stdout = String::from_utf8_lossy(&output.stdout).into_owned();
     let stderr = String::from_utf8_lossy(&output.stderr);
 
@@ -69,8 +81,13 @@ async fn curl_multipart_post(
 
     log::info!("curl response: {stdout}");
 
-    if stdout.contains("\"error\"") {
-        return Err(format!("API error: {stdout}").into());
+    // Parse JSON properly instead of fragile string matching
+    if let Ok(parsed) = serde_json::from_str::<serde_json::Value>(&stdout) {
+        if let Some(err) = parsed.get("error") {
+            return Err(format!("API error: {err}").into());
+        }
+    } else {
+        return Err(format!("API returned non-JSON: {}", stdout.chars().take(200).collect::<String>()).into());
     }
 
     Ok(stdout)
@@ -135,7 +152,6 @@ pub async fn translate(
     target_lang: &str,
 ) -> Result<String, Box<dyn std::error::Error + Send + Sync>> {
     log::info!("Translate: {} → {} (\"{}\")", source_lang, target_lang, text);
-    let client = Client::new();
 
     let body = TranslateRequest {
         input: text,
@@ -145,7 +161,7 @@ pub async fn translate(
         mode: "formal",
     };
 
-    let response = client
+    let response = HTTP_CLIENT
         .post(TRANSLATE_ENDPOINT)
         .header("api-subscription-key", api_key)
         .header("Content-Type", "application/json")
@@ -167,17 +183,15 @@ pub async fn translate(
 // ─── API key validation ───────────────────────────────────────────────────────
 
 pub async fn test_key(api_key: &str) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
-    let client = Client::new();
-
     let body = serde_json::json!({
-        "input": "नमस्ते",
+        "input": "test",
         "source_language_code": "hi-IN",
         "target_language_code": "en-IN",
         "model": "mayura:v1",
         "mode": "formal"
     });
 
-    let response = client
+    let response = HTTP_CLIENT
         .post(TRANSLATE_ENDPOINT)
         .header("api-subscription-key", api_key)
         .header("Content-Type", "application/json")
