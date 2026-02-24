@@ -22,106 +22,48 @@
 
 ---
 
-<br/>
-
 ## How It Works
 
-```
-                        ┌─────────────────────────────────────────┐
-                        │            Click any text field          │
-                        │       in any app on your computer        │
-                        └───────────────────┬─────────────────────┘
-                                            │
-                                            ▼
-                        ┌─────────────────────────────────────────┐
-                        │       🟠 Bubble appears near field       │
-                        │     Click it or press Ctrl+Shift+Space   │
-                        └───────────────────┬─────────────────────┘
-                                            │
-                                            ▼
-                        ┌─────────────────────────────────────────┐
-                        │          🎙️ Speak naturally              │
-                        │    Hindi, Tamil, Malayalam, English...    │
-                        │    Even code-mixed Hinglish/Tanglish     │
-                        └───────────────────┬─────────────────────┘
-                                            │
-                                            ▼
-                        ┌─────────────────────────────────────────┐
-                        │      ✨ Text appears in your field       │
-                        │    Transcribed + optionally translated    │
-                        └─────────────────────────────────────────┘
-```
+```mermaid
+flowchart TD
+    A["Click any text field\nin any app on your computer"] --> B["Bubble appears near field\nClick it or press Ctrl+Shift+Space"]
+    B --> C["Speak naturally\nHindi, Tamil, Malayalam, English...\nEven code-mixed Hinglish/Tanglish"]
+    C --> D["Text appears in your field\nTranscribed + optionally translated"]
 
-<br/>
+    style A fill:#f8f9fa,stroke:#495057,color:#212529
+    style B fill:#fff3cd,stroke:#f0ad4e,color:#212529
+    style C fill:#d4edda,stroke:#28a745,color:#212529
+    style D fill:#cce5ff,stroke:#0d6efd,color:#212529
+```
 
 ## Features
 
-<table>
-  <tr>
-    <td width="50%">
-
-**22+ Indian Languages**<br/>
-Hindi, Tamil, Telugu, Kannada, Malayalam, Bengali, Gujarati, Marathi, Punjabi, Odia, Assamese, Urdu, Nepali, and more
-
-**Code-Mixed Speech**<br/>
-Hinglish, Tanglish, Manglish — speak however you naturally do
-
-**Live Translation**<br/>
-Set a destination language and VaaniFlow transcribes + translates in one go
-
-  </td>
-  <td width="50%">
-
-**Smart Floating Bubble**<br/>
-Appears near active text fields automatically. Draggable. Unobtrusive.
-
-**Global Hotkey**<br/>
-`Ctrl+Shift+Space` (customisable) — works from any app
-
-**Microphone Picker**<br/>
-Choose from all available input devices in Settings
-
-  </td>
-  </tr>
-  <tr>
-    <td>
-
-**Privacy First**<br/>
-Your API key, your data. Calls go directly from your machine to Sarvam's servers. No telemetry, no accounts, no middlemen.
-
-  </td>
-  <td>
-
-**Tiny Footprint**<br/>
-Rust + Tauri v2 = ~8 MB binary. No Electron. No bloat.
-
-  </td>
-  </tr>
-</table>
-
-<br/>
+- **22+ Indian Languages** — Hindi, Tamil, Telugu, Kannada, Malayalam, Bengali, Gujarati, Marathi, Punjabi, Odia, Assamese, Urdu, Nepali, and more
+- **Code-Mixed Speech** — Hinglish, Tanglish, Manglish — speak however you naturally do
+- **Live Translation** — Set a destination language and VaaniFlow transcribes + translates in one go
+- **Smart Floating Bubble** — Appears near active text fields automatically. Draggable. Unobtrusive.
+- **Global Hotkey** — `Ctrl+Shift+Space` (customisable) — works from any app
+- **Microphone Picker** — Choose from all available input devices in Settings
+- **Privacy First** — Your API key, your data. Calls go directly from your machine to Sarvam's servers. No telemetry, no accounts, no middlemen.
+- **Tiny Footprint** — Rust + Tauri v2 = ~8 MB binary. No Electron. No bloat.
 
 ## Tech Stack
 
-```
-┌──────────────────────────────────────────────────────────────────┐
-│  Frontend          React 19 · TypeScript 5 · Vite 7             │
-│  Backend           Rust (2021 edition) · Tauri v2               │
-│  Audio             cpal capture · hound WAV · 16kHz resampling  │
-│  Speech-to-Text    Sarvam Saaras v3                             │
-│  Translation       Sarvam Mayura v1                             │
-│  Platform          Win32 APIs (Windows) · AppleScript (macOS)   │
-└──────────────────────────────────────────────────────────────────┘
-```
-
-<br/>
+| Layer | Technology |
+| :------ | :----------- |
+| **Frontend** | React 19, TypeScript 5, Vite 7 |
+| **Backend** | Rust (2021 edition), Tauri v2 |
+| **Audio** | cpal capture, hound WAV, 16kHz resampling |
+| **Speech-to-Text** | Sarvam Saaras v3 |
+| **Translation** | Sarvam Mayura v1 |
+| **Platform** | Win32 APIs (Windows), AppleScript (macOS) |
 
 ## Quick Start
 
 ### Prerequisites
 
 | Tool | Version | Link |
-|------|---------|------|
+| :------ | :-------- | :------ |
 | Rust | stable | [rustup.rs](https://rustup.rs/) |
 | Node.js | 18+ | [nodejs.org](https://nodejs.org/) |
 | Tauri CLI | 2.x | `cargo install tauri-cli` |
@@ -152,81 +94,83 @@ cargo tauri dev
 cargo tauri build
 ```
 
-<br/>
-
 ## Usage
 
-```
- 1.  Launch VaaniFlow       →  A small orange bubble appears on screen
- 2.  Click a text field      →  Gmail, VS Code, Slack, WhatsApp Web, Notes...
- 3.  Bubble glows            →  It detected the text field
- 4.  Click bubble / hotkey   →  Recording starts (bubble pulses)
- 5.  Speak naturally         →  Any Indian language, any accent
- 6.  Click again / hotkey    →  Recording stops
- 7.  Text appears            →  Transcribed (+ translated) into your field
-```
+1. **Launch VaaniFlow** — A small orange bubble appears on screen
+2. **Click a text field** — Gmail, VS Code, Slack, WhatsApp Web, Notes...
+3. **Bubble glows** — It detected the text field
+4. **Click bubble / hotkey** — Recording starts (bubble pulses)
+5. **Speak naturally** — Any Indian language, any accent
+6. **Click again / hotkey** — Recording stops
+7. **Text appears** — Transcribed (+ translated) into your field
 
 ### Settings
 
 Right-click the bubble **> Settings** to configure:
 
 | Setting | Description |
-|---------|-------------|
+| :-------- | :------------ |
 | **API Key** | Your Sarvam API key (with built-in validation) |
 | **Source Language** | Pick a language or `Auto-detect` for all 22+ |
 | **Destination Language** | `Same as source` to skip translation, or pick a target |
 | **Global Hotkey** | Default: `Ctrl+Shift+Space` |
 | **Microphone** | Pick from all input devices, or use System Default |
 
-<br/>
-
 ## Architecture
 
 ### Audio Pipeline
 
-```
-Microphone (any sample rate)
-    │
-    ├─ cpal ─── raw audio capture (f32 mono)
-    │
-    ├─ Resample ─── 48kHz/44.1kHz → 16kHz (linear interpolation)
-    │
-    ├─ hound ─── WAV encoding (16-bit PCM, 16kHz mono)
-    │
-    ├─ Sarvam Saaras v3 ─── POST /speech-to-text
-    │                        transcript + detected language
-    │
-    ├─ (optional) Sarvam Mayura v1 ─── POST /translate
-    │
-    └─ Clipboard + Ctrl+V ─── text flows into your field
+```mermaid
+flowchart TD
+    A["Microphone (any sample rate)"] --> B["cpal — f32 mono capture"]
+    B --> C["Resample — 48kHz to 16kHz"]
+    C --> D["hound — 16-bit PCM WAV"]
+    D --> E["Sarvam Saaras v3 — POST /speech-to-text"]
+    E --> F{"Translation needed?"}
+    F -- No --> H["Clipboard + Ctrl+V — text into field"]
+    F -- Yes --> G["Sarvam Mayura v1 — POST /translate"]
+    G --> H
+
+    style A fill:#f8f9fa,stroke:#495057,color:#212529
+    style E fill:#fff3cd,stroke:#f0ad4e,color:#212529
+    style G fill:#fff3cd,stroke:#f0ad4e,color:#212529
+    style H fill:#d4edda,stroke:#28a745,color:#212529
 ```
 
 ### Smart Routing
 
 | Your Setting | What Happens | API Calls |
-|:---|:---|:---|
+| :------------- | :------------- | :---------- |
 | **Same as source** | Transcribe in original language | `1` — Saaras v3 `mode=transcribe` |
 | **English** | Speech directly to English | `1` — Saaras v3 `mode=translate` |
 | **Other Indian language** | Transcribe + translate | `2` — Saaras v3 + Mayura v1 |
-
-<br/>
 
 ## Supported Languages
 
 ### Speech-to-Text — Saaras v3
 
-| | | | |
-|:---|:---|:---|:---|
-| `hi-IN` Hindi | `ta-IN` Tamil | `te-IN` Telugu | `kn-IN` Kannada |
-| `ml-IN` Malayalam | `bn-IN` Bengali | `gu-IN` Gujarati | `mr-IN` Marathi |
-| `pa-IN` Punjabi | `or-IN` Odia | `en-IN` English | `as-IN` Assamese |
-| `ur-IN` Urdu | `ne-IN` Nepali | `auto` Auto-detect | |
+| Code | Language | Code | Language |
+| :------- | :----------- | :------- | :----------- |
+| `hi-IN` | Hindi | `ta-IN` | Tamil |
+| `te-IN` | Telugu | `kn-IN` | Kannada |
+| `ml-IN` | Malayalam | `bn-IN` | Bengali |
+| `gu-IN` | Gujarati | `mr-IN` | Marathi |
+| `pa-IN` | Punjabi | `or-IN` | Odia |
+| `en-IN` | English | `as-IN` | Assamese |
+| `ur-IN` | Urdu | `ne-IN` | Nepali |
+| `auto` | Auto-detect | | |
 
 ### Translation — Mayura v1
 
-All of the above **plus**: Bodo (`brx-IN`), Dogri (`doi-IN`), Konkani (`kok-IN`), Kashmiri (`ks-IN`), Maithili (`mai-IN`), Manipuri (`mni-IN`), Sanskrit (`sa-IN`), Santali (`sat-IN`), Sindhi (`sd-IN`)
+All of the above **plus**:
 
-<br/>
+| Code | Language | Code | Language |
+| :------- | :----------- | :------- | :----------- |
+| `brx-IN` | Bodo | `doi-IN` | Dogri |
+| `kok-IN` | Konkani | `ks-IN` | Kashmiri |
+| `mai-IN` | Maithili | `mni-IN` | Manipuri |
+| `sa-IN` | Sanskrit | `sat-IN` | Santali |
+| `sd-IN` | Sindhi | | |
 
 ## Platform Notes
 
@@ -252,13 +196,10 @@ VaaniFlow needs Accessibility access to detect which app is in focus and simulat
 
 </details>
 
-<br/>
-
 ## Project Structure
 
 ```
 VaaniFlow/
-│
 ├── src/                          # Frontend (React + TypeScript)
 │   ├── App.tsx                   # Settings window
 │   ├── BubbleApp.tsx             # Floating bubble UI + recording logic
@@ -279,21 +220,16 @@ VaaniFlow/
 └── src-tauri/Cargo.toml          # Rust dependencies
 ```
 
-<br/>
-
 ## API Reference
 
 | API | Endpoint | Model | Purpose |
-|:----|:---------|:------|:--------|
+| :---- | :--------- | :------ | :-------- |
 | Speech-to-Text | `POST /speech-to-text` | `saaras:v3` | Transcription + speech-to-English |
 | Translate | `POST /translate` | `mayura:v1` | Text-to-text between Indian languages |
 
-Base URL: `https://api.sarvam.ai`
-
-Supported audio formats: WAV, MP3, AAC, AIFF, OGG, OPUS, FLAC, MP4/M4A, AMR, WMA, WebM, PCM
-Max recording length: **30 seconds** per call
-
-<br/>
+- **Base URL:** `https://api.sarvam.ai`
+- **Supported audio formats:** WAV, MP3, AAC, AIFF, OGG, OPUS, FLAC, MP4/M4A, AMR, WMA, WebM, PCM
+- **Max recording length:** 30 seconds per call
 
 ## Contributing
 
@@ -303,8 +239,6 @@ PRs are welcome! Here are some areas that need work:
 - **Streaming STT** — WebSocket-based real-time transcription
 - **Custom vocabulary** — Personal dictionary sync
 - **Waveform visualisation** — Better recording feedback
-
-<br/>
 
 ## License
 
