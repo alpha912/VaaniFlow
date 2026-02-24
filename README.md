@@ -46,7 +46,7 @@ flowchart TD
 - **Global Hotkey** — `Ctrl+Shift+Space` (customisable) — works from any app
 - **Microphone Picker** — Choose from all available input devices in Settings
 - **Privacy First** — Your API key, your data. Calls go directly from your machine to Sarvam's servers. No telemetry, no accounts, no middlemen.
-- **Tiny Footprint** — Rust + Tauri v2 = ~8 MB binary. No Electron. No bloat.
+- **Tiny Footprint** — Rust + Tauri v2 = ~2 MB binary. No Electron. No bloat.
 
 ## Tech Stack
 
