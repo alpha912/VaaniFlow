@@ -4989,7 +4989,7 @@ dependencies = [
 
 [[package]]
 name = "vaaniflow"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "cpal",
  "dirs 5.0.1",
