@@ -27,9 +27,9 @@
 
 ```mermaid
 flowchart TD
-    A["Click any text field\nin any app on your computer"] --> B["Bubble appears near field\nClick it or press Ctrl+Shift+Space"]
-    B --> C["Speak naturally\nHindi, Tamil, Malayalam, English...\nEven code-mixed Hinglish/Tanglish"]
-    C --> D["Text appears in your field\nTranscribed + optionally translated"]
+    A["Click any text field<br/>in any app on your computer"] --> B["Bubble appears near field<br/>Click it or press Ctrl+Shift+Space"]
+    B --> C["Speak naturally<br/>Hindi, Tamil, Malayalam, English...<br/>Even code-mixed Hinglish/Tanglish"]
+    C --> D["Text appears in your field<br/>Transcribed + optionally translated"]
 
     style A fill:#f8f9fa,stroke:#495057,color:#212529
     style B fill:#fff3cd,stroke:#f0ad4e,color:#212529
