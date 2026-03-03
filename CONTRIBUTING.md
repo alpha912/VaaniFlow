@@ -10,7 +10,7 @@ VaaniFlow is a community-friendly project with one maintainer:
 - `alpha912` is the default maintainer for all changes merged into `main`.
 - The repository is public and community contributions are welcome via fork + pull
   request.
-- `main` is protected and only `alpha912` can push or merge directly.
+- `main` is protected; merges go through normal PR review and maintainer approval.
 - `alpha912` is responsible for releases.
 
 ## Platform Status
@@ -100,6 +100,8 @@ bring VaaniFlow to macOS, please open an issue to coordinate.
 4. Verify all checks pass locally:
    ```bash
    npm run build           # Frontend builds
+   npm run lint           # TypeScript checks
+   npm run test           # Local test entry point
    cargo fmt --check       # Rust formatting
    cargo clippy            # Rust lints
    cargo check             # Rust compilation
@@ -132,7 +134,7 @@ bring VaaniFlow to macOS, please open an issue to coordinate.
 
 - **Never commit API keys.** The `.env.development` file is gitignored.
 - Release builds do not bake in any API key; users provide their own.
-- Report security vulnerabilities privately to alphinctom@gmail.com.
+- Report security vulnerabilities privately via [SECURITY.md](./SECURITY.md).
 
 ## Releases
 

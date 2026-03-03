@@ -4,7 +4,7 @@ version = "0.2.0"
 edition = "2021"
 description = "Speak any Indian language. Flow anywhere."
 license = "MIT"
-authors = ["Alphin Tom <alphinctom@gmail.com>"]
+authors = ["Alphin Tom"]
 repository = "https://github.com/alpha912/VaaniFlow"
 homepage = "https://github.com/alpha912/VaaniFlow"
 

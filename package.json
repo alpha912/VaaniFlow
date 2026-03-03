@@ -3,7 +3,7 @@
   "version": "0.2.0",
   "description": "Speak any Indian language. Flow anywhere.",
   "license": "MIT",
-  "author": "Alphin Tom <alphinctom@gmail.com>",
+  "author": "Alphin Tom",
   "repository": {
     "type": "git",
     "url": "https://github.com/alpha912/VaaniFlow.git"
@@ -15,6 +15,8 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
+    "lint": "tsc --noEmit",
+    "test": "npm run lint",
     "tauri": "tauri"
   },
   "dependencies": {

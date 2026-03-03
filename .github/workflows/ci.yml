@@ -41,10 +41,13 @@ jobs:
         run: npm ci
 
       - name: TypeScript check
-        run: npx tsc --noEmit
+        run: npm run lint
 
       - name: Build frontend
         run: npm run build
+
+      - name: Project test checks
+        run: npm run test
 
       - name: Rust formatting
         working-directory: src-tauri

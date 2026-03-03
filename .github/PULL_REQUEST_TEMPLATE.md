@@ -12,6 +12,8 @@ Link related issue(s) here.
 - [ ] `cargo fmt --check`
 - [ ] `cargo clippy`
 - [ ] `cargo check`
+- [ ] `npm run lint`
+- [ ] `npm run test`
 - [ ] Manual OS-level smoke test on Windows
 
 ## Screenshots / screen recordings (if UI changes)
