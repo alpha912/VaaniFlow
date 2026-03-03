@@ -8,6 +8,7 @@ on:
 jobs:
   build-and-release:
     name: Build Windows Installer
+    if: github.actor == 'alpha912'
     runs-on: windows-latest
     permissions:
       contents: write

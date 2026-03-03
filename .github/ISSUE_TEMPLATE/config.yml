@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Security issue
+    url: mailto:alphinctom@gmail.com
+    about: Report security issues privately.
+  - name: Discussions
+    url: https://github.com/alpha912/VaaniFlow/discussions
+    about: Use discussions for design questions and brainstorming.
