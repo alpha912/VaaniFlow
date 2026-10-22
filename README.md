@@ -53,7 +53,7 @@ VaaniFlow v0.3 is a native Rust desktop app with an egui interface. It captures 
 ```bash
 sudo apt-get update
 sudo apt-get install --yes build-essential pkg-config \
-  libasound2-dev libudev-dev libwayland-dev \
+  libasound2-dev libdbus-1-dev libudev-dev libwayland-dev \
   libx11-dev libxcursor-dev libxinerama-dev libxi-dev libxrandr-dev \
   libxkbcommon-dev libxkbcommon-x11-dev libxtst-dev
 ```
