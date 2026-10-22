@@ -5,6 +5,28 @@ All notable changes to VaaniFlow will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.0] - 2026-06-30
+
+### Added
+
+- Replaced the React/Tauri frontend with a native Rust desktop UI built on egui/eframe.
+- Added reviewable transcription results, direct clipboard copy, and best-effort paste to the previously focused Windows text field.
+- Added Saaras model and speech-mode selection, Mayura translation style, Saaras v4 terminology hints, and language selectors covering 23 Sarvam language codes.
+- Added an OS credential-store migration for API keys previously stored in plaintext preferences.
+- Added cross-platform Rust CI and tagged portable-binary draft release workflows.
+
+### Improved
+
+- Send Sarvam requests directly with reqwest; remove the external curl process and temporary WAV file path.
+- Bound recordings to 27 seconds, avoid logging transcript contents or raw API responses, and default to review before insertion.
+- Use a single native Rust/egui codebase without a JavaScript build or embedded webview.
+
+### Platform notes
+
+- Windows text-field recognition is best-effort; foreground restoration may be restricted by Windows.
+- macOS and Linux use hotkey-first workflows; Linux global shortcuts are X11-dependent, while Wayland compositor policy can restrict global input integration.
+- Tagged builds are unsigned portable archives, not signed installers; verify desktop integrations on each platform before general distribution.
+
 ## [0.2.0] - 2026-02-24
 
 ### Added
@@ -49,5 +71,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Windows 10/11 (primary, fully supported)
 - macOS (scaffolded, needs contributor testing)
 
+[0.3.0]: https://github.com/alpha912/VaaniFlow/releases/tag/v0.3.0
 [0.2.0]: https://github.com/alpha912/VaaniFlow/releases/tag/v0.2.0
 [0.1.0]: https://github.com/alpha912/VaaniFlow/releases/tag/v0.1.0

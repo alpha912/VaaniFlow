@@ -5,23 +5,63 @@ on:
     tags:
       - "v*"
 
-jobs:
-  build-and-release:
-    name: Build Windows Installer
-    if: github.actor == 'alpha912'
-    runs-on: windows-latest
-    permissions:
-      contents: write
+permissions:
+  contents: read
 
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  validate-tag:
+    name: Validate version tag
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.ref }}
+
+      - name: Check tag matches the native crate version
+        id: version
+        shell: bash
+        run: |
+          version="$(cargo metadata --no-deps --format-version 1 | python3 -c 'import json,sys; print(next(p["version"] for p in json.load(sys.stdin)["packages"] if p["name"] == "vaaniflow"))')"
+          expected="v${version}"
+          if [[ "${GITHUB_REF_NAME}" != "${expected}" ]]; then
+            echo "Tag ${GITHUB_REF_NAME} does not match native/Cargo.toml version ${expected}." >&2
+            exit 1
+          fi
+          echo "version=${version}" >> "${GITHUB_OUTPUT}"
+
+  build:
+    name: Build ${{ matrix.platform }}
+    needs: validate-tag
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: windows
+            os: windows-latest
+          - platform: macos
+            os: macos-latest
+          - platform: linux
+            os: ubuntu-latest
+    runs-on: ${{ matrix.os }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: lts/*
-          cache: npm
+      - name: Install Linux build dependencies
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes --no-install-recommends \
+            libasound2-dev libudev-dev pkg-config \
+            libx11-dev libxcursor-dev libxinerama-dev libxkbcommon-dev \
+            libxkbcommon-x11-dev libxrandr-dev libxi-dev libwayland-dev libxtst-dev
 
       - name: Install Rust stable
         uses: dtolnay/rust-toolchain@stable
@@ -29,25 +69,65 @@ jobs:
       - name: Rust cache
         uses: swatinem/rust-cache@v2
         with:
-          workspaces: ./src-tauri -> target
+          workspaces: . -> target
 
-      - name: Install frontend dependencies
-        run: npm ci
+      - name: Build release binary
+        run: cargo build --package vaaniflow --release --locked
 
-      - name: Build and release
-        uses: tauri-apps/tauri-action@v0
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Package Windows binary
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $name = "VaaniFlow-v${{ needs.validate-tag.outputs.version }}-windows-${{ runner.arch }}"
+          New-Item -ItemType Directory -Path $name | Out-Null
+          Copy-Item target/release/vaaniflow.exe, README.md, LICENSE $name/
+          Compress-Archive -Path "$name/*" -DestinationPath "$name.zip"
+
+      - name: Package macOS or Linux binary
+        if: runner.os != 'Windows'
+        shell: bash
+        run: |
+          name="VaaniFlow-v${{ needs.validate-tag.outputs.version }}-${{ matrix.platform }}-${RUNNER_ARCH}"
+          mkdir "${name}"
+          cp target/release/vaaniflow README.md LICENSE "${name}/"
+          tar -czf "${name}.tar.gz" "${name}"
+
+      - name: Upload release archive
+        uses: actions/upload-artifact@v4
         with:
-          tagName: v__VERSION__
-          releaseName: VaaniFlow v__VERSION__
-          releaseBody: |
-            ## VaaniFlow v__VERSION__
+          name: VaaniFlow-v${{ needs.validate-tag.outputs.version }}-${{ matrix.platform }}-${{ runner.arch }}
+          path: VaaniFlow-v${{ needs.validate-tag.outputs.version }}-${{ matrix.platform }}-${{ runner.arch }}.*
+          if-no-files-found: error
+          retention-days: 7
 
-            Download the installer below and run it. You will need a
-            [Sarvam AI API key](https://www.sarvam.ai/) (free tier: 1,000 credits).
+  publish-draft:
+    name: Create draft GitHub release
+    needs: [validate-tag, build]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Download platform archives
+        uses: actions/download-artifact@v4
+        with:
+          path: release-assets
+          merge-multiple: true
 
-            See the [changelog](https://github.com/alpha912/VaaniFlow/blob/main/CHANGELOG.md)
-            for details on what changed in this release.
-          releaseDraft: true
-          prerelease: false
+      - name: Create draft release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        shell: bash
+        run: |
+          cat > release-notes.md <<'EOF'
+          ## VaaniFlow v${{ needs.validate-tag.outputs.version }}
+
+          These are unsigned portable binaries, not installers. See the included README for platform prerequisites and input/accessibility limitations. Linux builds require compatible desktop/audio libraries; macOS builds are for the architecture shown in each archive name.
+
+          A Sarvam AI API key is required for speech recognition and translation. Configure it in VaaniFlow; it is not bundled with these builds.
+          EOF
+          gh release create "${GITHUB_REF_NAME}" release-assets/* \
+            --repo "${GITHUB_REPOSITORY}" \
+            --verify-tag \
+            --draft \
+            --title "VaaniFlow v${{ needs.validate-tag.outputs.version }}" \
+            --notes-file release-notes.md

@@ -1,148 +1,109 @@
 # Contributing to VaaniFlow
 
-Thank you for your interest in contributing! VaaniFlow is a Tauri 2 desktop app
-that brings speech-to-text for 22+ Indian languages to any text field.
+Thank you for your interest in contributing. VaaniFlow is a native Rust desktop app with an egui interface for speech recognition and translation using Sarvam APIs. Cross-application focus and input behavior varies by operating system; see [Platform status](README.md#platform-status) before working on platform integrations.
 
 ## Project governance
 
-VaaniFlow is a community-friendly project with one maintainer:
+VaaniFlow is community-friendly and maintained by `alpha912`:
 
-- `alpha912` is the default maintainer for all changes merged into `main`.
-- The repository is public and community contributions are welcome via fork + pull
-  request.
-- `main` is protected; merges go through normal PR review and maintainer approval.
-- `alpha912` is responsible for releases.
+- Contributions are welcome via fork and pull request.
+- Changes to `main` go through review and maintainer approval.
+- Releases are managed by the maintainer.
 
-## Platform Status
+## Platform status
 
-| Platform | Status | Notes |
-| :------- | :----- | :---- |
-| **Windows** | Supported | Primary development platform |
-| **macOS** | Needs contributors | AppleScript focus detection scaffolded but untested |
-| **Linux** | Planned | AT-SPI2 text-field detection needed |
+| Platform | Current behavior | Areas to improve |
+| :--- | :--- | :--- |
+| **Windows** | Best-effort focus detection for common text controls and best-effort paste to the last detected target. | Broaden detection and test foreground restoration across editors and browsers. |
+| **macOS** | Native UI/audio build target; hotkey-first workflow and manual clipboard insertion. | Accessibility-based focus detection and tested text insertion. |
+| **Linux** | Native UI/audio build target; hotkey-first workflow and manual clipboard insertion. Global hotkeys depend on X11; Wayland behavior depends on the compositor. | AT-SPI integration, Wayland-friendly shortcut/input support and distro testing. |
 
-**macOS developers are especially welcome!** If you have a Mac and want to help
-bring VaaniFlow to macOS, please open an issue to coordinate.
+Build success on a platform does not mean every cross-app integration is complete there. Please report your OS version, desktop environment/session, and the exact behavior when filing platform issues.
 
-## Development Setup
+## Development setup
 
 ### Prerequisites
 
-| Tool | Version | Link |
-| :--- | :------ | :--- |
-| Rust | stable | [rustup.rs](https://rustup.rs/) |
-| Node.js | 18+ | [nodejs.org](https://nodejs.org/) |
-| Sarvam API Key | free tier | [sarvam.ai](https://www.sarvam.ai/) |
+- Rust stable via [rustup](https://rustup.rs/).
+- A [Sarvam AI API key](https://www.sarvam.ai/) for live transcription and translation tests.
+- Platform toolchains and audio/window-system development libraries. See [README build prerequisites](README.md#prerequisites).
 
-### Getting Started
+### Getting started
 
 1. Fork and clone the repository:
    ```bash
    git clone https://github.com/<your-username>/VaaniFlow.git
    cd VaaniFlow
    ```
-
-2. Install frontend dependencies:
+2. Run the native app:
    ```bash
-   npm install
+   cargo run -p vaaniflow
    ```
+3. Enter your API key in the app. It is stored in the OS credential store where available; do not add credentials to source files, logs, or pull requests.
 
-3. Create your environment file:
-   ```bash
-   cp .env.example .env.development
-   # Edit .env.development and add your Sarvam API key
-   ```
+Run the local checks before submitting changes:
 
-4. Run in development mode:
-   ```bash
-   cargo tauri dev
-   ```
+```bash
+cargo fmt --all -- --check
+cargo clippy --workspace --all-targets --locked -- -D warnings
+cargo test --workspace --locked
+cargo build -p vaaniflow --release --locked
+```
 
-5. Build for production:
-   ```bash
-   cargo tauri build
-   ```
+## Making changes
 
-## Making Changes
+### Branch strategy
 
-### Branch Strategy
+- Create a feature branch from an up-to-date `main`, e.g. `git checkout -b feat/your-feature`.
+- Use descriptive prefixes such as `feat/`, `fix/`, `docs/`, or `refactor/`.
 
-- Create a feature branch from `main` after syncing your fork: `git checkout -b feat/your-feature`
-- Use descriptive branch prefixes: `feat/`, `fix/`, `docs/`, `refactor/`
+### Code style
 
-### Code Style
+- Run `cargo fmt --all` before committing Rust changes.
+- Run Clippy and address warnings.
+- Keep UI changes in `native/src/app.rs`; API, audio, configuration, language and platform integration code live in the adjacent modules.
+- Avoid logging API credentials, transcripts, request/response bodies, or recorded audio.
+- Add or update tests for behavior that can be exercised without a microphone, network account, or desktop session.
 
-**Rust:**
-- Run `cargo fmt` before committing
-- Run `cargo clippy` and address all warnings
-- Follow existing patterns in `src-tauri/src/`
+### Commit messages
 
-**TypeScript / React:**
-- TypeScript strict mode is enabled (see `tsconfig.json`)
-- No unused locals or parameters
-- Follow existing component patterns in `src/`
+- Use imperative mood: “Add feature”, not “Added feature”.
+- Keep the subject line under 72 characters.
+- Reference issues where applicable, e.g. “Fix #42: handle empty audio buffer”.
 
-### Commit Messages
+## Pull request process
 
-- Use imperative mood: "Add feature" not "Added feature"
-- Keep the subject line under 72 characters
-- Reference issues where applicable: "Fix #42: handle empty audio buffer"
+1. Check whether the change fits an existing issue; open an issue first for a substantial new feature.
+2. For larger changes, open a draft PR early to align on the approach.
+3. Rebase on the latest `main` before requesting review.
+4. Run the local checks above and describe which passed. For platform work, include OS, desktop session and manual testing details.
+5. Open a PR against `main` and include the problem, solution, tests, relevant UI screenshots or logs, and linked issues.
+6. CI runs Rust formatting, Clippy, tests and platform builds. Address failures before requesting review.
+7. One maintainer approval is required before merge.
 
-## Pull Request Process
+Keep PRs focused. Rebase rather than merge commits where practical; squash merges are preferred.
 
-1. Check if your change fits an existing issue. If it is a new feature, we ask for an issue first.
-2. For substantial changes, open a draft PR early to get alignment.
-3. Ensure your branch is up to date with `main`:
-   ```bash
-   git fetch upstream
-   git rebase upstream/main
-   ```
-4. Verify all checks pass locally:
-   ```bash
-   npm run build           # Frontend builds
-   npm run lint           # TypeScript checks
-   npm run test           # Local test entry point
-   cargo fmt --check       # Rust formatting
-   cargo clippy            # Rust lints
-   cargo check             # Rust compilation
-   ```
-5. Open a PR against `main` from your fork branch.
-6. Include:
-   - What problem you are solving
-   - Testing performed
-   - Screenshots or logs for UI/audio behavior changes
-   - Linked issue(s), if any
-7. CI will run automatically on your PR. Address any failures before requesting review.
-8. One maintainer approval is required and `alpha912` will perform the final merge review.
+## Areas that need work
 
-### Merge expectations
-
-- Keep PRs focused: one concept per PR.
-- Rebase instead of merge commits whenever possible.
-- Squash is preferred for historical readability.
-
-## Areas That Need Work
-
-- **macOS support** — Accessibility permission, AppleScript focus detection
-- **Linux support** — AT-SPI2 text-field detection
-- **Streaming STT** — WebSocket-based real-time transcription
-- **Custom vocabulary** — Personal dictionary sync
-- **Waveform visualisation** — Better recording feedback
-- **Tests** — Unit and integration test coverage
+- macOS accessibility-based focus detection and tested text insertion.
+- Linux AT-SPI and desktop/compositor integration, especially Wayland.
+- More reliable cross-application paste and platform permission guidance.
+- Integration tests for settings migration, API request construction, and desktop interactions.
+- Streaming recognition, richer recording feedback, and improved vocabulary workflows.
+- Signed installers and platform-specific packaging.
 
 ## Security
 
-- **Never commit API keys.** The `.env.development` file is gitignored.
-- Release builds do not bake in any API key; users provide their own.
-- Report security vulnerabilities privately via [SECURITY.md](./SECURITY.md).
+- Never commit API keys or user transcripts.
+- Release builds do not contain an API key; each user supplies their own.
+- Report vulnerabilities privately via [SECURITY.md](./SECURITY.md).
 
 ## Releases
 
-- Releases are managed only by `alpha912`.
-- Do not add release-related commits to feature PRs.
-- Release tags and publishing are done through the maintainer workflow.
+- Releases are managed by `alpha912`.
+- Do not add release-only commits to feature PRs.
+- Version tags must match the package version in `native/Cargo.toml`. The tag workflow builds unsigned portable archives and creates a draft release for maintainer review.
 
 ## License
 
-By contributing, you agree that your contributions will be licensed under the
-[MIT License](./LICENSE).
+By contributing, you agree that your contributions will be licensed under the [MIT License](./LICENSE).

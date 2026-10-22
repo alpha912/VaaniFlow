@@ -1,0 +1,39 @@
+[package]
+name = "vaaniflow"
+version = "0.3.0"
+edition = "2021"
+description = "Speak any Indian language. Flow anywhere."
+license = "MIT"
+authors = ["Alphin Tom"]
+repository = "https://github.com/alpha912/VaaniFlow"
+homepage = "https://github.com/alpha912/VaaniFlow"
+
+[dependencies]
+# Native Rust UI. glow keeps the renderer leaner than the default wgpu stack.
+eframe = { version = "0.37", default-features = false, features = ["accesskit", "clipboard", "default_fonts", "glow", "system_fonts", "wayland", "x11"] }
+
+# Desktop integrations (Linux global hotkeys are X11-only; see README).
+global-hotkey = "0.9"
+tray-icon = { version = "0.26", default-features = false, features = ["ksni"] }
+image = { version = "0.25", default-features = false, features = ["png"] }
+
+# App services
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+reqwest = { version = "0.12", default-features = false, features = ["json", "multipart", "rustls-tls"] }
+tokio = { version = "1", features = ["macros", "rt-multi-thread", "time"] }
+cpal = "0.15"
+hound = "3.5"
+arboard = "3.6"
+rdev = "0.5"
+dirs = "5"
+keyring = { version = "3.6", default-features = false, features = ["apple-native", "windows-native", "sync-secret-service", "crypto-rust"] }
+log = "0.4"
+env_logger = "0.11"
+
+[target.'cfg(target_os = "windows")'.dependencies]
+windows = { version = "0.58", features = [
+    "Win32_Foundation",
+    "Win32_System_Threading",
+    "Win32_UI_WindowsAndMessaging",
+] }

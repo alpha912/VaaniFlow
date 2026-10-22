@@ -1,249 +1,156 @@
 <p align="center">
-  <img src="src-tauri/icons/128x128@2x.png" alt="VaaniFlow Logo" width="120" />
+  <img src="native/icons/icon.png" alt="VaaniFlow logo" width="120" />
 </p>
 
 <h1 align="center">VaaniFlow</h1>
 
 <p align="center">
-  <strong>Speak any Indian language. Type anywhere.</strong>
+  <strong>Speak an Indian language. Get the words where you need them.</strong>
 </p>
 
 <p align="center">
   <a href="https://github.com/alpha912/VaaniFlow/blob/main/LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue.svg?style=flat-square" alt="License: MIT" /></a>
-  <a href="https://tauri.app/"><img src="https://img.shields.io/badge/built%20with-Tauri%20v2-FFC131?style=flat-square&logo=tauri&logoColor=white" alt="Tauri v2" /></a>
-  <a href="https://www.rust-lang.org/"><img src="https://img.shields.io/badge/Rust-2021-DEA584?style=flat-square&logo=rust&logoColor=white" alt="Rust" /></a>
-  <a href="https://react.dev/"><img src="https://img.shields.io/badge/React-19-61DAFB?style=flat-square&logo=react&logoColor=black" alt="React 19" /></a>
+  <a href="https://www.rust-lang.org/"><img src="https://img.shields.io/badge/Rust-native-DEA584?style=flat-square&logo=rust&logoColor=white" alt="Native Rust" /></a>
+  <a href="https://github.com/emilk/egui"><img src="https://img.shields.io/badge/UI-egui-5B8DEF?style=flat-square" alt="egui" /></a>
   <a href="https://www.sarvam.ai/"><img src="https://img.shields.io/badge/API-Sarvam%20AI-E8671A?style=flat-square" alt="Sarvam AI" /></a>
   <a href="https://github.com/alpha912/VaaniFlow/actions/workflows/ci.yml"><img src="https://img.shields.io/github/actions/workflow/status/alpha912/VaaniFlow/ci.yml?style=flat-square&label=CI" alt="CI" /></a>
 </p>
 
-<p align="center">
-  <sub>A tiny desktop app that puts a floating bubble near any text field.<br/>Click the bubble, speak in any of 22+ Indian languages, and the text flows right in.</sub>
-</p>
+VaaniFlow v0.3 is a native Rust desktop app with an egui interface. It captures short microphone recordings, sends them to Sarvam for speech recognition and optional translation, and helps enter the resulting text into another app. Cross-application focus detection and input simulation are platform-dependent; see [Platform status](#platform-status) before relying on those integrations.
 
----
+## What it does
 
-## How It Works
+- Captures microphone audio with a configurable input device and a 27-second recording limit.
+- Uses Sarvam Saaras speech-to-text (v3 by default; v4 can be selected) and Mayura v1 for optional translation.
+- Supports Sarvam's available languages and speech modes; exact availability depends on the selected model and Sarvam account.
+- Provides configurable source/target languages, a global shortcut, translation style and terminology hints.
+- Defaults to review-before-insert and keeps the Sarvam credential separate from ordinary preferences using the operating-system credential store when available.
+- Sends requests directly from the app to Sarvam. Dictation audio and text are sent to that service when you use transcription or translation; VaaniFlow does not provide an intermediary service.
 
-```mermaid
-flowchart TD
-    A["Click any text field<br/>in any app on your computer"] --> B["Bubble appears near field<br/>Click it or press Ctrl+Shift+Space"]
-    B --> C["Speak naturally<br/>Hindi, Tamil, Malayalam, English...<br/>Even code-mixed Hinglish/Tanglish"]
-    C --> D["Text appears in your field<br/>Transcribed + optionally translated"]
+## Technology
 
-    style A fill:#f8f9fa,stroke:#495057,color:#212529
-    style B fill:#fff3cd,stroke:#f0ad4e,color:#212529
-    style C fill:#d4edda,stroke:#28a745,color:#212529
-    style D fill:#cce5ff,stroke:#0d6efd,color:#212529
-```
+| Area | Technology |
+| :--- | :--- |
+| Desktop UI | Rust, egui via eframe |
+| Audio | cpal capture, mono conversion, WAV encoding with hound |
+| Networking | reqwest with rustls, Tokio |
+| Preferences and credentials | serde JSON preferences, OS keyring for the API key |
+| Desktop integration | global-hotkey, clipboard and input simulation; platform-specific focus handling |
+| Speech recognition | Sarvam Saaras v3 / v4 |
+| Translation | Sarvam Mayura v1 |
 
-## Features
-
-- **22+ Indian Languages** — Hindi, Tamil, Telugu, Kannada, Malayalam, Bengali, Gujarati, Marathi, Punjabi, Odia, Assamese, Urdu, Nepali, and more
-- **Code-Mixed Speech** — Hinglish, Tanglish, Manglish — speak however you naturally do
-- **Live Translation** — Set a destination language and VaaniFlow transcribes + translates in one go
-- **Smart Floating Bubble** — Appears near active text fields automatically. Draggable. Unobtrusive.
-- **Global Hotkey** — `Ctrl+Shift+Space` (customisable) — works from any app
-- **Microphone Picker** — Choose from all available input devices in Settings
-- **Privacy First** — Your API key, your data. Calls go directly from your machine to Sarvam's servers. No telemetry, no accounts, no middlemen.
-- **Tiny Footprint** — Rust + Tauri v2 = ~2 MB binary. No Electron. No bloat.
-
-## Tech Stack
-
-| Layer | Technology |
-| :------ | :----------- |
-| **Frontend** | React 19, TypeScript 5, Vite 7, Tabler Icons |
-| **Backend** | Rust (2021 edition), Tauri v2 |
-| **Audio** | cpal capture, hound WAV, 16kHz resampling |
-| **Speech-to-Text** | Sarvam Saaras v3 |
-| **Translation** | Sarvam Mayura v1 |
-| **Platform** | Win32 APIs (Windows), AppleScript (macOS) |
-
-## Quick Start
+## Build and run from source
 
 ### Prerequisites
 
-| Tool | Version | Link |
-| :------ | :-------- | :------ |
-| Rust | stable | [rustup.rs](https://rustup.rs/) |
-| Node.js | 18+ | [nodejs.org](https://nodejs.org/) |
-| Tauri CLI | 2.x | `cargo install tauri-cli` |
-| Sarvam API Key | free tier | [sarvam.ai](https://www.sarvam.ai/) |
-
-> Free tier gives you **1,000 credits** — roughly **33 hours** of speech recognition.
-
-### Install & Run
+- Rust stable, installed with [rustup](https://rustup.rs/).
+- A [Sarvam AI API key](https://www.sarvam.ai/) to use transcription and translation.
+- Platform build tools and native libraries:
+  - **Windows:** Visual Studio Build Tools with the C++ build tools workload (MSVC).
+  - **macOS:** Xcode Command Line Tools (`xcode-select --install`).
+  - **Ubuntu/Debian:** the audio, window-system and X11 development packages below; use your distribution's equivalents elsewhere.
 
 ```bash
-# Clone the repo
+sudo apt-get update
+sudo apt-get install --yes build-essential pkg-config \
+  libasound2-dev libudev-dev libwayland-dev \
+  libx11-dev libxcursor-dev libxinerama-dev libxi-dev libxrandr-dev \
+  libxkbcommon-dev libxkbcommon-x11-dev libxtst-dev
+```
+
+### Run and test
+
+From the repository root:
+
+```bash
+# Clone the repository
 git clone https://github.com/alpha912/VaaniFlow.git
 cd VaaniFlow
 
-# Install frontend dependencies
-npm install
-
-# Create your env file
-echo "VITE_SARVAM_API_KEY=your_api_key_here" > .env.development
-
-# Launch in dev mode
-cargo tauri dev
+# Run the native workspace app
+cargo run -p vaaniflow
 ```
 
-### Build for Production
+Enter your Sarvam API key in the app's settings; do not commit credentials or place them in a checked-in file. The Rust workspace and lockfile are at the repository root, and the native package is `vaaniflow` under `native/`.
+
+To build and check the project locally:
 
 ```bash
-cargo tauri build
+cargo fmt --all -- --check
+cargo clippy --workspace --all-targets --locked -- -D warnings
+cargo test --workspace --locked
+cargo build -p vaaniflow --release --locked
 ```
 
-## Usage
+No JavaScript package installation or desktop-webview CLI is required; the UI and application logic are built in Rust.
 
-1. **Launch VaaniFlow** — A small orange bubble appears on screen
-2. **Click a text field** — Gmail, VS Code, Slack, WhatsApp Web, Notes...
-3. **Bubble glows** — It detected the text field
-4. **Click bubble / hotkey** — Recording starts (bubble pulses)
-5. **Speak naturally** — Any Indian language, any accent
-6. **Click again / hotkey** — Recording stops
-7. **Text appears** — Transcribed (+ translated) into your field
+## Platform status
 
-### Settings
+The release workflow attempts native builds on Windows, macOS and Linux. A successful compile is not a guarantee that every cross-app interaction works in every desktop session:
 
-Right-click the bubble or system tray icon **> Settings** to configure:
+- **Windows:** active text-field detection uses a best-effort heuristic for common native controls and applications. Focus restoration can be denied by Windows foreground policy.
+- **macOS:** focus detection is hotkey-first rather than querying accessibility data. Input simulation and credential-store behavior may depend on the user's permissions and system configuration.
+- **Linux:** focus detection is hotkey-first. Global hotkeys are X11-dependent; Wayland compositor policy and desktop portals can limit global shortcuts, clipboard access or simulated input. Install the distribution's audio and window-system libraries.
 
-| Setting | Description |
-| :-------- | :------------ |
-| **API Key** | Your Sarvam API key (with built-in validation) |
-| **Source Language** | Pick a language or `Auto-detect` for all 22+ |
-| **Destination Language** | `Same as source` to skip translation, or pick a target |
-| **Global Hotkey** | Default: `Ctrl+Shift+Space` |
-| **Microphone** | Pick from all input devices, or use System Default |
+The automated release assets are unsigned portable binaries, not platform installers. They are not code-signed or notarized, and Linux binaries depend on compatible system libraries. Treat the multi-platform builds as early distribution artifacts, not a claim of complete platform parity.
 
-## Architecture
+## Data and settings
 
-### Audio Pipeline
+VaaniFlow stores preferences such as language, microphone, shortcut, speech mode and translation style in a per-user configuration file. The API key is stored separately in the operating-system keyring where supported. If secure credential storage cannot be accessed, the app may retain the key only for the current session and ask you to enter it again next time. Do not share logs or recordings containing sensitive information.
 
-```mermaid
-flowchart TD
-    A["Microphone (any sample rate)"] --> B["cpal — f32 mono capture"]
-    B --> C["Resample — 48kHz to 16kHz"]
-    C --> D["hound — 16-bit PCM WAV"]
-    D --> E["Sarvam Saaras v3 — POST /speech-to-text"]
-    E --> F{"Translation needed?"}
-    F -- No --> H["Clipboard + Ctrl+V — text into field"]
-    F -- Yes --> G["Sarvam Mayura v1 — POST /translate"]
-    G --> H
+A transcription request sends the recorded audio to Sarvam's API. Translation sends the transcript to Sarvam as well. Review Sarvam's terms and privacy information before use.
 
-    style A fill:#f8f9fa,stroke:#495057,color:#212529
-    style E fill:#fff3cd,stroke:#f0ad4e,color:#212529
-    style G fill:#fff3cd,stroke:#f0ad4e,color:#212529
-    style H fill:#d4edda,stroke:#28a745,color:#212529
-```
+## Release process
 
-### Smart Routing
+The version in `native/Cargo.toml` is the release version for the v0.3 native app. Before a release:
 
-| Your Setting | What Happens | API Calls |
-| :------------- | :------------- | :---------- |
-| **Same as source** | Transcribe in original language | `1` — Saaras v3 `mode=transcribe` |
-| **English** | Speech directly to English | `1` — Saaras v3 `mode=translate` |
-| **Other Indian language** | Transcribe + translate | `2` — Saaras v3 + Mayura v1 |
+1. Update the native crate version and regenerate/check the workspace `Cargo.lock` as needed.
+2. Run the formatting, Clippy, tests and release build commands above, and wait for CI to pass on the changes.
+3. Create and push a version tag that exactly matches the crate version. For example, for `0.3.0`:
 
-## Supported Languages
+   ```bash
+   git tag -a v0.3.0 -m "VaaniFlow v0.3.0"
+   git push origin v0.3.0
+   ```
 
-### Speech-to-Text — Saaras v3
+4. The tag workflow verifies the version and builds Windows, macOS (the hosted runner's architecture) and Linux archives. It then creates a **draft** GitHub Release with those unsigned portable binaries attached. Review the artifacts and notes, then publish the draft when ready.
 
-| Code | Language | Code | Language |
-| :------- | :----------- | :------- | :----------- |
-| `hi-IN` | Hindi | `ta-IN` | Tamil |
-| `te-IN` | Telugu | `kn-IN` | Kannada |
-| `ml-IN` | Malayalam | `bn-IN` | Bengali |
-| `gu-IN` | Gujarati | `mr-IN` | Marathi |
-| `pa-IN` | Punjabi | `or-IN` | Odia |
-| `en-IN` | English | `as-IN` | Assamese |
-| `ur-IN` | Urdu | `ne-IN` | Nepali |
-| `auto` | Auto-detect | | |
+Do not reuse a published version tag. If a build fails, fix the source and publish a new patch version/tag rather than moving the old tag.
 
-### Translation — Mayura v1
+## Project layout
 
-All of the above **plus**:
-
-| Code | Language | Code | Language |
-| :------- | :----------- | :------- | :----------- |
-| `brx-IN` | Bodo | `doi-IN` | Dogri |
-| `kok-IN` | Konkani | `ks-IN` | Kashmiri |
-| `mai-IN` | Maithili | `mni-IN` | Manipuri |
-| `sa-IN` | Sanskrit | `sat-IN` | Santali |
-| `sd-IN` | Sindhi | | |
-
-## Platform Notes
-
-<details>
-<summary><strong>Windows — Microphone Access</strong></summary>
-
-VaaniFlow needs microphone access. If Windows blocks it, the app will **automatically open** your mic privacy settings.
-
-1. Open **Settings > Privacy & Security > Microphone**
-2. Ensure **Microphone access** is ON
-3. Scroll down — ensure **Let desktop apps access your microphone** is ON
-
-</details>
-
-<details>
-<summary><strong>macOS — Accessibility Permission</strong></summary>
-
-VaaniFlow needs Accessibility access to detect which app is in focus and simulate paste.
-
-1. Build and run the app once
-2. Open **System Settings > Privacy & Security > Accessibility**
-3. Enable **VaaniFlow**
-
-</details>
-
-## Project Structure
-
-```
+```text
 VaaniFlow/
-├── src/                          # Frontend (React + TypeScript)
-│   ├── App.tsx                   # Settings window
-│   ├── BubbleApp.tsx             # Floating bubble UI + recording logic
-│   ├── Bubble.tsx                # Bubble window entry point
-│   ├── main.tsx                  # Settings window entry point
-│   └── styles.css                # Shared styles
-│
-├── src-tauri/                    # Backend (Rust + Tauri v2)
+├── Cargo.toml                 # Rust workspace
+├── Cargo.lock                 # Workspace dependency lockfile
+├── native/
+│   ├── Cargo.toml             # vaaniflow 0.3 native package (egui/eframe)
+│   ├── icons/                 # App icons
 │   └── src/
-│       ├── main.rs               # Tauri commands, routing, hotkey
-│       ├── audio.rs              # Mic capture, WAV encoding, resampling
-│       ├── sarvam.rs             # Sarvam API client (STT + translate)
-│       ├── config.rs             # Settings persistence (JSON)
-│       └── focus_monitor.rs      # Cross-app text field detection
-│
-├── .env.development              # Dev API key (gitignored)
-├── package.json                  # Frontend dependencies
-└── src-tauri/Cargo.toml          # Rust dependencies
+│       ├── main.rs            # Native eframe application entry point
+│       ├── app.rs             # egui UI, recording workflow, tray and shortcuts
+│       ├── audio.rs           # Microphone capture and WAV encoding
+│       ├── config.rs          # Preferences and credential handling
+│       ├── focus_monitor.rs   # Best-effort active-field integration
+│       ├── languages.rs       # Sarvam language names and codes
+│       └── sarvam.rs          # Speech and translation API client
+├── .github/workflows/
+│   ├── ci.yml                 # Format, lint, tests and platform builds
+│   └── release.yml            # Tagged multi-platform draft releases
+└── README.md
 ```
 
-## API Reference
+## Sarvam API
 
-| API | Endpoint | Model | Purpose |
-| :---- | :--------- | :------ | :-------- |
-| Speech-to-Text | `POST /speech-to-text` | `saaras:v3` | Transcription + speech-to-English |
-| Translate | `POST /translate` | `mayura:v1` | Text-to-text between Indian languages |
-
-- **Base URL:** `https://api.sarvam.ai`
-- **Supported audio formats:** WAV, MP3, AAC, AIFF, OGG, OPUS, FLAC, MP4/M4A, AMR, WMA, WebM, PCM
-- **Max recording length:** 30 seconds per call
+- Base URL: `https://api.sarvam.ai`
+- Speech-to-text endpoint: `POST /speech-to-text` (`saaras:v3` or `saaras:v4`)
+- Translation endpoint: `POST /translate` (`mayura:v1`)
+- Availability, quotas, accepted languages and modes are controlled by Sarvam and may change.
 
 ## Contributing
 
-PRs are welcome! Here are some areas that need work:
-
-- **Linux support** — AT-SPI2 text-field detection
-- **Streaming STT** — WebSocket-based real-time transcription
-- **Custom vocabulary** — Personal dictionary sync
+Issues and pull requests are welcome. Please include the affected operating system and desktop session when reporting shortcut, focus, microphone or text-insertion problems. Run the Rust formatting, lint and test commands above before opening a pull request.
 
 ## License
 
-MIT — see [LICENSE](./LICENSE)
-
-<p align="center">
-  <sub>Built with Rust, React, and Sarvam AI</sub>
-</p>
+MIT — see [LICENSE](./LICENSE).
