@@ -2,7 +2,12 @@
 //! the operating-system keyring and is never serialized to this file.
 
 use serde::{Deserialize, Serialize};
-use std::{fs, path::PathBuf};
+use std::{
+    fs::{self, OpenOptions},
+    io::Write,
+    path::{Path, PathBuf},
+    sync::atomic::{AtomicU64, Ordering},
+};
 
 const KEYRING_SERVICE: &str = "VaaniFlow";
 const KEYRING_USER: &str = "sarvam-api-key";
@@ -204,19 +209,66 @@ pub fn save_api_key(key: &str) -> Result<(), keyring::Error> {
 }
 
 pub fn save(config: &Config) -> Result<(), Box<dyn std::error::Error>> {
-    let path = config_path();
+    save_to_path(&config_path(), config)
+}
+
+fn save_to_path(path: &Path, config: &Config) -> Result<(), Box<dyn std::error::Error>> {
     let parent = path.parent().ok_or("Invalid config path")?;
     fs::create_dir_all(parent)?;
     let data = serde_json::to_vec_pretty(config)?;
-    let temp_path = path.with_extension("json.tmp");
-    fs::write(&temp_path, data)?;
-    // Rename is atomic on the same volume and avoids truncating a valid config
-    // if the process exits during a write.
-    if path.exists() {
-        fs::remove_file(&path)?;
+    static SAVE_COUNTER: AtomicU64 = AtomicU64::new(0);
+    let file_name = path.file_name().ok_or("Invalid config file name")?;
+    let temp_name = format!(
+        ".{}.{}.{}.tmp",
+        file_name.to_string_lossy(),
+        std::process::id(),
+        SAVE_COUNTER.fetch_add(1, Ordering::Relaxed)
+    );
+    let temp_path = parent.join(temp_name);
+    let result = (|| {
+        let mut file = OpenOptions::new()
+            .write(true)
+            .create_new(true)
+            .open(&temp_path)?;
+        file.write_all(&data)?;
+        file.sync_all()?;
+        drop(file);
+        replace_file(&temp_path, path)?;
+        Ok::<_, Box<dyn std::error::Error>>(())
+    })();
+    if result.is_err() {
+        let _ = fs::remove_file(&temp_path);
     }
-    fs::rename(temp_path, path)?;
-    Ok(())
+    result
+}
+
+#[cfg(not(target_os = "windows"))]
+fn replace_file(source: &Path, destination: &Path) -> std::io::Result<()> {
+    fs::rename(source, destination)
+}
+
+#[cfg(target_os = "windows")]
+fn replace_file(source: &Path, destination: &Path) -> std::io::Result<()> {
+    use std::os::windows::ffi::OsStrExt;
+    use windows::core::PCWSTR;
+    use windows::Win32::Storage::FileSystem::{
+        MoveFileExW, MOVEFILE_REPLACE_EXISTING, MOVEFILE_WRITE_THROUGH,
+    };
+
+    let source: Vec<u16> = source.as_os_str().encode_wide().chain(Some(0)).collect();
+    let destination: Vec<u16> = destination
+        .as_os_str()
+        .encode_wide()
+        .chain(Some(0))
+        .collect();
+    unsafe {
+        MoveFileExW(
+            PCWSTR(source.as_ptr()),
+            PCWSTR(destination.as_ptr()),
+            MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH,
+        )
+    }
+    .map_err(|error| std::io::Error::other(error.to_string()))
 }
 
 fn normalize_hotkey(hotkey: &str) -> String {
@@ -278,5 +330,49 @@ mod tests {
         assert_eq!(config.stt_model, "saaras:v3");
         assert_eq!(config.stt_mode, "transcribe");
         assert_eq!(config.translation_mode, "formal");
+    }
+
+    fn test_directory() -> PathBuf {
+        static TEST_COUNTER: AtomicU64 = AtomicU64::new(0);
+        let path = std::env::temp_dir().join(format!(
+            "vaaniflow-config-test-{}-{}",
+            std::process::id(),
+            TEST_COUNTER.fetch_add(1, Ordering::Relaxed)
+        ));
+        let _ = fs::remove_dir_all(&path);
+        fs::create_dir_all(&path).unwrap();
+        path
+    }
+
+    #[test]
+    fn settings_replace_the_previous_file() {
+        let directory = test_directory();
+        let path = directory.join("config.json");
+        fs::write(&path, br#"{"source_language":"ta-IN"}"#).unwrap();
+        let config = Config {
+            source_language: "hi-IN".into(),
+            ..Config::default()
+        };
+
+        save_to_path(&path, &config).unwrap();
+
+        let saved: Config = serde_json::from_slice(&fs::read(&path).unwrap()).unwrap();
+        assert_eq!(saved.source_language, "hi-IN");
+        assert_eq!(fs::read_dir(&directory).unwrap().count(), 1);
+        fs::remove_dir_all(directory).unwrap();
+    }
+
+    #[test]
+    fn failed_replacement_keeps_the_existing_target_intact() {
+        let directory = test_directory();
+        let path = directory.join("config.json");
+        fs::create_dir(&path).unwrap();
+        let sentinel = path.join("keep.txt");
+        fs::write(&sentinel, b"existing data").unwrap();
+
+        assert!(save_to_path(&path, &Config::default()).is_err());
+        assert_eq!(fs::read(sentinel).unwrap(), b"existing data");
+        assert_eq!(fs::read_dir(&directory).unwrap().count(), 1);
+        fs::remove_dir_all(directory).unwrap();
     }
 }

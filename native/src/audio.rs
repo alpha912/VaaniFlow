@@ -1,12 +1,14 @@
-//! Microphone capture, bounded to stay below Sarvam's REST duration limit.
+//! Microphone capture, split into bounded segments below Sarvam's REST limit.
 
 use cpal::traits::{DeviceTrait, HostTrait, StreamTrait};
 use cpal::Sample;
 use std::io::Cursor;
 use std::sync::{Arc, Mutex};
 
-/// Keep a few seconds below the REST API's 30-second guidance.
-pub const MAX_RECORDING_SECONDS: usize = 27;
+/// Maximum locally buffered audio. Requests are segmented below Sarvam's limit.
+pub const MAX_RECORDING_SECONDS: usize = 120;
+/// Keep a few seconds below the REST API's 30-second guidance per request.
+pub const MAX_SEGMENT_SECONDS: usize = 27;
 
 pub struct Recorder {
     samples: Arc<Mutex<Vec<f32>>>,
@@ -115,6 +117,15 @@ impl Recorder {
         );
         Ok((samples, sample_rate))
     }
+
+    pub fn discard(&mut self) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+        drop(self.stream.take());
+        self.samples
+            .lock()
+            .map_err(|error| error.to_string())?
+            .clear();
+        Ok(())
+    }
 }
 
 fn build_input_stream<T>(
@@ -160,25 +171,39 @@ pub fn list_devices() -> Vec<String> {
         .unwrap_or_default()
 }
 
-/// Encode f32 samples as mono 16-bit PCM WAV at 16kHz.
-pub fn encode_wav(
+/// Resample once and encode recordings as request-sized WAV segments.
+pub fn encode_wav_segments(
     samples: Vec<f32>,
     sample_rate: u32,
-) -> Result<Vec<u8>, Box<dyn std::error::Error + Send + Sync>> {
-    let (samples, final_rate) = if sample_rate != 16_000 {
-        (resample(&samples, sample_rate, 16_000), 16_000)
+) -> Result<Vec<Vec<u8>>, Box<dyn std::error::Error + Send + Sync>> {
+    if samples.is_empty() {
+        return Ok(Vec::new());
+    }
+    let samples = if sample_rate != 16_000 {
+        resample(&samples, sample_rate, 16_000)
     } else {
-        (samples, sample_rate)
+        samples
     };
+    let segment_samples = 16_000 * MAX_SEGMENT_SECONDS;
+    samples
+        .chunks(segment_samples)
+        .map(|segment| encode_16khz_wav(segment, 16_000))
+        .collect()
+}
+
+fn encode_16khz_wav(
+    samples: &[f32],
+    sample_rate: u32,
+) -> Result<Vec<u8>, Box<dyn std::error::Error + Send + Sync>> {
     let mut cursor = Cursor::new(Vec::new());
     let spec = hound::WavSpec {
         channels: 1,
-        sample_rate: final_rate,
+        sample_rate,
         bits_per_sample: 16,
         sample_format: hound::SampleFormat::Int,
     };
     let mut writer = hound::WavWriter::new(&mut cursor, spec)?;
-    for sample in samples {
+    for sample in samples.iter().copied() {
         writer.write_sample((sample.clamp(-1.0, 1.0) * i16::MAX as f32) as i16)?;
     }
     writer.finalize()?;
@@ -219,11 +244,30 @@ mod tests {
 
     #[test]
     fn wav_encoder_writes_16k_mono_pcm() {
-        let wav = encode_wav(vec![0.0; 48_000], 48_000).unwrap();
+        let mut segments = encode_wav_segments(vec![0.0; 48_000], 48_000).unwrap();
+        let wav = segments.remove(0);
         let reader = hound::WavReader::new(Cursor::new(wav)).unwrap();
         assert_eq!(reader.spec().sample_rate, 16_000);
         assert_eq!(reader.spec().channels, 1);
         assert_eq!(reader.spec().bits_per_sample, 16);
         assert_eq!(reader.duration(), 16_000);
+    }
+
+    #[test]
+    fn long_recording_is_split_below_the_api_duration_limit() {
+        let input = vec![0.1; 48_000 * (MAX_SEGMENT_SECONDS + 2)];
+        let segments = encode_wav_segments(input, 48_000).unwrap();
+        assert_eq!(segments.len(), 2);
+
+        let durations = segments
+            .into_iter()
+            .map(|wav| hound::WavReader::new(Cursor::new(wav)).unwrap().duration())
+            .collect::<Vec<_>>();
+        assert_eq!(durations, vec![16_000 * MAX_SEGMENT_SECONDS as u32, 32_000]);
+    }
+
+    #[test]
+    fn empty_recording_produces_no_segments() {
+        assert!(encode_wav_segments(Vec::new(), 48_000).unwrap().is_empty());
     }
 }

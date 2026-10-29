@@ -26,6 +26,14 @@ pub struct SttResponse {
     pub language_code: Option<String>,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct TranscriptionResult {
+    /// The final text, or the original transcript if optional translation fails.
+    pub text: String,
+    /// Present when speech recognition succeeded but translation did not.
+    pub translation_warning: Option<String>,
+}
+
 #[derive(Debug, Serialize)]
 struct TranslateRequest<'a> {
     input: &'a str,
@@ -62,11 +70,31 @@ pub fn route_for(config: &Config) -> Route {
 
 pub async fn transcribe_and_translate(
     api_key: &str,
-    wav_bytes: Vec<u8>,
+    wav_segments: Vec<Vec<u8>>,
     config: &Config,
-) -> ApiResult<String> {
+) -> ApiResult<TranscriptionResult> {
+    transcribe_and_translate_at(
+        api_key,
+        wav_segments,
+        config,
+        STT_ENDPOINT,
+        TRANSLATE_ENDPOINT,
+    )
+    .await
+}
+
+async fn transcribe_and_translate_at(
+    api_key: &str,
+    wav_segments: Vec<Vec<u8>>,
+    config: &Config,
+    stt_endpoint: &str,
+    translate_endpoint: &str,
+) -> ApiResult<TranscriptionResult> {
     if api_key.trim().is_empty() {
         return Err("Add your Sarvam API key in Settings first.".into());
+    }
+    if wav_segments.is_empty() {
+        return Err("No audio was captured. Record a short phrase and try again.".into());
     }
     let route = route_for(config);
     let (mode, translate_target) = match route {
@@ -74,40 +102,78 @@ pub async fn transcribe_and_translate(
         Route::TranscribeThenTranslate { target } => ("transcribe".to_owned(), Some(target)),
     };
 
-    let stt = speech_to_text(
-        api_key,
-        wav_bytes,
-        &config.source_language,
-        &config.stt_model,
-        &mode,
-        &config.keyterms,
-    )
-    .await?;
+    let mut transcriptions = Vec::with_capacity(wav_segments.len());
+    for wav in wav_segments {
+        transcriptions.push(
+            speech_to_text_with_endpoint(
+                api_key,
+                wav,
+                &config.source_language,
+                &config.stt_model,
+                &mode,
+                &config.keyterms,
+                stt_endpoint,
+            )
+            .await?,
+        );
+    }
+
+    let transcript = transcriptions
+        .iter()
+        .map(|segment| segment.transcript.as_str())
+        .collect::<Vec<_>>()
+        .join(" ");
     let Some(target) = translate_target else {
-        return Ok(stt.transcript);
+        return Ok(TranscriptionResult {
+            text: transcript,
+            translation_warning: None,
+        });
     };
 
-    let detected = stt.language_code.as_deref().unwrap_or("auto");
-    if target == detected {
-        return Ok(stt.transcript);
+    let mut translated_segments = Vec::with_capacity(transcriptions.len());
+    for segment in &transcriptions {
+        let detected = segment.language_code.as_deref().unwrap_or("auto");
+        if target == detected {
+            translated_segments.push(segment.transcript.clone());
+            continue;
+        }
+        match translate_with_endpoint(
+            api_key,
+            &segment.transcript,
+            detected,
+            &target,
+            &config.translation_mode,
+            translate_endpoint,
+        )
+        .await
+        {
+            Ok(text) => translated_segments.push(text),
+            Err(error) => return Ok(translation_fallback(transcript, error.to_string())),
+        }
     }
-    translate(
-        api_key,
-        &stt.transcript,
-        detected,
-        &target,
-        &config.translation_mode,
-    )
-    .await
+    Ok(TranscriptionResult {
+        text: translated_segments.join(" "),
+        translation_warning: None,
+    })
 }
 
-pub async fn speech_to_text(
+fn translation_fallback(transcript: String, error: String) -> TranscriptionResult {
+    TranscriptionResult {
+        text: transcript,
+        translation_warning: Some(format!(
+            "Translation failed; the original transcript is shown instead. {error}"
+        )),
+    }
+}
+
+async fn speech_to_text_with_endpoint(
     api_key: &str,
     wav_bytes: Vec<u8>,
     language_code: &str,
     model: &str,
     mode: &str,
     keyterms: &str,
+    endpoint: &str,
 ) -> ApiResult<SttResponse> {
     if !matches!(model, "saaras:v3" | "saaras:v4") {
         return Err("Choose a supported Sarvam speech model.".into());
@@ -142,7 +208,7 @@ pub async fn speech_to_text(
     }
 
     let response = HTTP_CLIENT
-        .post(STT_ENDPOINT)
+        .post(endpoint)
         .header("api-subscription-key", api_key)
         .multipart(form)
         .send()
@@ -157,12 +223,13 @@ pub async fn speech_to_text(
     Ok(result)
 }
 
-pub async fn translate(
+async fn translate_with_endpoint(
     api_key: &str,
     text: &str,
     source_lang: &str,
     target_lang: &str,
     translation_mode: &str,
+    endpoint: &str,
 ) -> ApiResult<String> {
     if text.chars().count() > 1000 {
         return Err("This transcript is too long for one Mayura v1 translation request. Choose a shorter recording.".into());
@@ -183,7 +250,7 @@ pub async fn translate(
         mode,
     };
     let response = HTTP_CLIENT
-        .post(TRANSLATE_ENDPOINT)
+        .post(endpoint)
         .header("api-subscription-key", api_key)
         .json(&body)
         .send()
@@ -192,10 +259,16 @@ pub async fn translate(
         return Err(api_error("Translation", response.status()));
     }
     let result: TranslateResponse = response.json().await?;
+    if result.translated_text.trim().is_empty() {
+        return Err(
+            "Sarvam returned an empty translation. The original transcript is preserved.".into(),
+        );
+    }
     Ok(result.translated_text)
 }
 
-pub async fn test_key(api_key: &str) -> ApiResult<()> {
+/// Verify access to Mayura translation. This does not verify Saaras STT access.
+pub async fn test_translation_key(api_key: &str) -> ApiResult<()> {
     let body = TranslateRequest {
         input: "test",
         source_language_code: "en-IN",
@@ -213,7 +286,7 @@ pub async fn test_key(api_key: &str) -> ApiResult<()> {
         return Err("Sarvam rejected this API key. Check it and try again.".into());
     }
     if !response.status().is_success() {
-        return Err(api_error("API key test", response.status()));
+        return Err(api_error("Translation access test", response.status()));
     }
     Ok(())
 }
@@ -232,6 +305,70 @@ fn api_error(operation: &str, status: StatusCode) -> Box<dyn std::error::Error +
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::{
+        io::{Read, Write},
+        net::{TcpListener, TcpStream},
+        thread::JoinHandle,
+        time::Duration,
+    };
+
+    fn mock_server(responses: Vec<(u16, &'static str)>) -> (String, JoinHandle<Vec<String>>) {
+        let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+        let address = listener.local_addr().unwrap();
+        let server = std::thread::spawn(move || {
+            responses
+                .into_iter()
+                .map(|(status, body)| {
+                    let (mut stream, _) = listener.accept().unwrap();
+                    let path = read_request(&mut stream);
+                    let reason = if status == 200 { "OK" } else { "Service Unavailable" };
+                    write!(
+                        stream,
+                        "HTTP/1.1 {status} {reason}\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}",
+                        body.len()
+                    )
+                    .unwrap();
+                    path
+                })
+                .collect()
+        });
+        (format!("http://{address}"), server)
+    }
+
+    fn read_request(stream: &mut TcpStream) -> String {
+        stream
+            .set_read_timeout(Some(Duration::from_secs(5)))
+            .unwrap();
+        let mut request = Vec::new();
+        let mut buffer = [0; 4096];
+        let header_end = loop {
+            let count = stream.read(&mut buffer).unwrap();
+            assert_ne!(count, 0, "request ended before its headers");
+            request.extend_from_slice(&buffer[..count]);
+            if let Some(index) = request.windows(4).position(|window| window == b"\r\n\r\n") {
+                break index + 4;
+            }
+        };
+        let headers = String::from_utf8_lossy(&request[..header_end]).to_ascii_lowercase();
+        let content_length = headers
+            .lines()
+            .find_map(|line| line.strip_prefix("content-length:"))
+            .and_then(|value| value.trim().parse::<usize>().ok())
+            .unwrap_or(0);
+        while request.len() < header_end + content_length {
+            let count = stream.read(&mut buffer).unwrap();
+            assert_ne!(count, 0, "request ended before its body");
+            request.extend_from_slice(&buffer[..count]);
+        }
+        String::from_utf8_lossy(&request[..header_end])
+            .lines()
+            .next()
+            .unwrap()
+            .split_whitespace()
+            .nth(1)
+            .unwrap()
+            .to_owned()
+    }
 
     #[test]
     fn routes_target_language_correctly() {
@@ -263,5 +400,53 @@ mod tests {
         let message = api_error("Translation", StatusCode::INTERNAL_SERVER_ERROR).to_string();
         assert!(message.contains("HTTP 500"));
         assert!(!message.contains("transcript"));
+    }
+
+    #[test]
+    fn translation_failure_returns_the_full_original_transcript() {
+        let transcript = "first segment second segment".to_owned();
+        let result = translation_fallback(transcript.clone(), "service unavailable".into());
+        assert_eq!(result.text, transcript);
+        assert!(result
+            .translation_warning
+            .as_deref()
+            .is_some_and(|warning| warning.contains("service unavailable")));
+    }
+
+    #[test]
+    fn api_translation_failure_preserves_transcript_end_to_end() {
+        let (base, server) = mock_server(vec![
+            (
+                200,
+                r#"{"transcript":"namaste duniya","language_code":"hi-IN"}"#,
+            ),
+            (503, r#"{"message":"temporary failure"}"#),
+        ]);
+        let config = Config {
+            source_language: "hi-IN".into(),
+            target_language: "ta-IN".into(),
+            ..Config::default()
+        };
+
+        let runtime = tokio::runtime::Runtime::new().unwrap();
+        let result = runtime
+            .block_on(transcribe_and_translate_at(
+                "test-key",
+                vec![b"test wav".to_vec()],
+                &config,
+                &format!("{base}/speech-to-text"),
+                &format!("{base}/translate"),
+            ))
+            .unwrap();
+
+        assert_eq!(result.text, "namaste duniya");
+        assert!(result
+            .translation_warning
+            .as_deref()
+            .is_some_and(|warning| warning.contains("HTTP 503")));
+        assert_eq!(
+            server.join().unwrap(),
+            vec!["/speech-to-text", "/translate"]
+        );
     }
 }

@@ -20,7 +20,7 @@ enum AppMessage {
     ToggleRecording(u32),
     Show,
     Quit,
-    Transcription(Result<String, String>),
+    Transcription(Result<sarvam::TranscriptionResult, String>),
     ApiKeyTest(Result<(), String>),
 }
 
@@ -32,6 +32,7 @@ pub struct VaaniApp {
     banner: String,
     banner_is_error: bool,
     draft: String,
+    retry_audio: Option<Vec<Vec<u8>>>,
     recorder: audio::Recorder,
     recording: bool,
     processing: bool,
@@ -67,6 +68,7 @@ impl VaaniApp {
             banner: "Ready — press the shortcut or Record to dictate".into(),
             banner_is_error: false,
             draft: String::new(),
+            retry_audio: None,
             recorder: audio::Recorder::new(),
             recording: false,
             processing: false,
@@ -193,13 +195,19 @@ impl VaaniApp {
                 AppMessage::Transcription(result) => {
                     self.processing = false;
                     match result {
-                        Ok(text) => {
-                            self.draft = text;
-                            self.banner = "Transcription ready".into();
-                            self.banner_is_error = false;
+                        Ok(result) => {
+                            self.draft = result.text;
+                            self.retry_audio = None;
+                            if let Some(warning) = result.translation_warning {
+                                self.banner = warning;
+                                self.banner_is_error = true;
+                            } else {
+                                self.banner = "Transcription ready".into();
+                                self.banner_is_error = false;
+                            }
                             if !self.config.review_before_paste {
                                 self.copy_or_paste(ctx, true);
-                            } else {
+                            } else if !self.draft.is_empty() {
                                 ctx.send_viewport_cmd(egui::ViewportCommand::Visible(true));
                                 ctx.send_viewport_cmd(egui::ViewportCommand::Focus);
                             }
@@ -209,7 +217,8 @@ impl VaaniApp {
                 }
                 AppMessage::ApiKeyTest(result) => match result {
                     Ok(()) => {
-                        self.banner = "Sarvam API key is valid and reachable".into();
+                        self.banner =
+                            "Sarvam translation access is valid (speech access not checked)".into();
                         self.banner_is_error = false;
                     }
                     Err(error) => self.set_error(error),
@@ -247,6 +256,7 @@ impl VaaniApp {
         }
         match self.recorder.start(&self.config.microphone) {
             Ok(()) => {
+                self.retry_audio = None;
                 self.recording = true;
                 self.recording_started = Some(Instant::now());
                 self.banner = "Listening — press the shortcut again to finish".into();
@@ -283,30 +293,77 @@ impl VaaniApp {
             return;
         }
 
+        match audio::encode_wav_segments(samples, sample_rate) {
+            Ok(segments) if !segments.is_empty() => {
+                self.retry_audio = Some(segments);
+                self.transcribe_pending_audio();
+            }
+            Ok(_) => self.set_error("No audio was captured. Check the selected microphone.".into()),
+            Err(error) => self.set_error(format!("Could not encode the recording: {error}")),
+        }
+    }
+
+    fn cancel_recording(&mut self) {
+        if !self.recording {
+            return;
+        }
+        self.recording = false;
+        self.recording_started = None;
+        match self.recorder.discard() {
+            Ok(()) => {
+                self.banner = "Recording discarded".into();
+                self.banner_is_error = false;
+            }
+            Err(error) => self.set_error(format!("Could not discard recording: {error}")),
+        }
+    }
+
+    fn transcribe_pending_audio(&mut self) {
+        let Some(wav_segments) = self.retry_audio.clone() else {
+            self.set_error("There is no recording to retry".into());
+            return;
+        };
+        if self.api_key.trim().is_empty() {
+            self.set_error("Add your Sarvam API key in Settings before transcribing".into());
+            return;
+        }
+
         let config = self.config.clone();
         let api_key = self.api_key.clone();
         let sender = self.message_tx.clone();
         self.processing = true;
-        self.banner = "Transcribing securely with Sarvam…".into();
+        self.banner = format!(
+            "Transcribing {} audio segment(s) with Sarvam…",
+            wav_segments.len()
+        );
         self.banner_is_error = false;
-        let _ = thread::Builder::new()
+        let spawn = thread::Builder::new()
             .name("vaaniflow-transcription".into())
             .spawn(move || {
-                let result = audio::encode_wav(samples, sample_rate)
+                let result = tokio::runtime::Runtime::new()
                     .map_err(|error| error.to_string())
-                    .and_then(|wav| {
-                        tokio::runtime::Runtime::new()
+                    .and_then(|runtime| {
+                        runtime
+                            .block_on(sarvam::transcribe_and_translate(
+                                &api_key,
+                                wav_segments,
+                                &config,
+                            ))
                             .map_err(|error| error.to_string())
-                            .and_then(|runtime| {
-                                runtime
-                                    .block_on(sarvam::transcribe_and_translate(
-                                        &api_key, wav, &config,
-                                    ))
-                                    .map_err(|error| error.to_string())
-                            })
                     });
                 let _ = sender.send(AppMessage::Transcription(result));
             });
+        if let Err(error) = spawn {
+            self.processing = false;
+            self.set_error(format!("Could not start transcription: {error}"));
+        }
+    }
+
+    fn retry_transcription(&mut self) {
+        if self.processing || self.recording {
+            return;
+        }
+        self.transcribe_pending_audio();
     }
 
     fn test_api_key(&mut self) {
@@ -316,20 +373,23 @@ impl VaaniApp {
             return;
         }
         let sender = self.message_tx.clone();
-        self.banner = "Checking API key with Sarvam…".into();
+        self.banner = "Checking Sarvam translation access…".into();
         self.banner_is_error = false;
-        let _ = thread::Builder::new()
+        let spawn = thread::Builder::new()
             .name("vaaniflow-api-key-test".into())
             .spawn(move || {
                 let result = tokio::runtime::Runtime::new()
                     .map_err(|error| error.to_string())
                     .and_then(|runtime| {
                         runtime
-                            .block_on(sarvam::test_key(&key))
+                            .block_on(sarvam::test_translation_key(&key))
                             .map_err(|error| error.to_string())
                     });
                 let _ = sender.send(AppMessage::ApiKeyTest(result));
             });
+        if let Err(error) = spawn {
+            self.set_error(format!("Could not start translation access test: {error}"));
+        }
     }
 
     fn save_settings(&mut self) {
@@ -338,6 +398,20 @@ impl VaaniApp {
         if let Err(error) = self.register_hotkey() {
             self.set_error(format!(
                 "Settings were not saved: invalid shortcut: {error}"
+            ));
+            return;
+        }
+
+        if let Err(error) = config::save(&self.config) {
+            if let (Some(manager), Some(current)) = (&self.hotkey_manager, self.hotkey) {
+                let _ = manager.unregister(current);
+            }
+            if let (Some(manager), Some(previous)) = (&self.hotkey_manager, old_hotkey) {
+                let _ = manager.register(previous);
+                self.hotkey = Some(previous);
+            }
+            self.set_error(format!(
+                "Could not save preferences; the API key was not changed: {error}"
             ));
             return;
         }
@@ -351,21 +425,9 @@ impl VaaniApp {
             Err(error) => {
                 self.api_key = new_key;
                 self.credential_warning = Some(format!(
-                    "The key is only stored for this session; the OS keyring failed: {error}"
+                    "Preferences were saved, but the API key could not be updated in the OS keyring and is available only for this session: {error}. A previously stored key may remain there."
                 ));
             }
-        }
-
-        if let Err(error) = config::save(&self.config) {
-            if let (Some(manager), Some(current)) = (&self.hotkey_manager, self.hotkey) {
-                let _ = manager.unregister(current);
-            }
-            if let (Some(manager), Some(previous)) = (&self.hotkey_manager, old_hotkey) {
-                let _ = manager.register(previous);
-                self.hotkey = Some(previous);
-            }
-            self.set_error(format!("Could not save settings: {error}"));
-            return;
         }
         self.banner = "Settings saved".into();
         self.banner_is_error = false;
@@ -417,7 +479,9 @@ impl VaaniApp {
         ui.horizontal(|ui| {
             ui.label(RichText::new("VaaniFlow").size(28.0).strong().color(ACCENT));
             ui.add_space(8.0);
-            ui.label(RichText::new("v0.3 · native Rust").weak());
+            ui.label(
+                RichText::new(concat!("v", env!("CARGO_PKG_VERSION"), " · native Rust")).weak(),
+            );
         });
         ui.label("Speak naturally. Get text in the language you need.");
     }
@@ -457,22 +521,49 @@ impl VaaniApp {
                     .strong(),
                 );
                 ui.add_space(12.0);
-                let label = if self.recording {
-                    "Finish recording"
-                } else if self.processing {
-                    "Please wait…"
+                if self.recording {
+                    ui.horizontal(|ui| {
+                        if ui
+                            .add_sized(
+                                [ui.available_width() * 0.68, 44.0],
+                                egui::Button::new("Finish recording"),
+                            )
+                            .clicked()
+                        {
+                            self.stop_recording();
+                        }
+                        if ui
+                            .add_sized([ui.available_width(), 44.0], egui::Button::new("Discard"))
+                            .clicked()
+                        {
+                            self.cancel_recording();
+                        }
+                    });
                 } else {
-                    "●   Start recording"
-                };
-                let button = egui::Button::new(RichText::new(label).strong())
-                    .fill(if self.recording {
-                        Color32::from_rgb(177, 54, 49)
+                    let label = if self.processing {
+                        "Please wait…"
                     } else {
-                        ACCENT
-                    })
-                    .min_size(egui::vec2(ui.available_width(), 44.0));
-                if ui.add_enabled(!self.processing, button).clicked() {
-                    self.toggle_recording();
+                        "●   Start recording"
+                    };
+                    let button = egui::Button::new(RichText::new(label).strong())
+                        .fill(ACCENT)
+                        .min_size(egui::vec2(ui.available_width(), 44.0));
+                    if ui.add_enabled(!self.processing, button).clicked() {
+                        self.toggle_recording();
+                    }
+                }
+                if self.retry_audio.is_some() && !self.recording && !self.processing {
+                    ui.add_space(6.0);
+                    ui.horizontal(|ui| {
+                        if ui.button("Retry last recording").clicked() {
+                            self.retry_transcription();
+                        }
+                        if ui.button("Forget saved recording").clicked() {
+                            self.retry_audio = None;
+                            self.banner = "Saved recording discarded".into();
+                            self.banner_is_error = false;
+                        }
+                    });
                 }
                 ui.add_space(7.0);
                 ui.label(RichText::new(format!("Global shortcut: {}", self.config.hotkey)).weak());
@@ -493,6 +584,7 @@ impl VaaniApp {
                     ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                         if ui.small_button("Clear").clicked() {
                             self.draft.clear();
+                            self.retry_audio = None;
                         }
                     });
                 });
@@ -546,19 +638,38 @@ impl VaaniApp {
                 );
                 ui.end_row();
                 ui.label("Microphone");
-                egui::ComboBox::from_id_salt("microphone")
-                    .selected_text(&self.config.microphone)
-                    .width(210.0)
-                    .show_ui(ui, |ui| {
-                        ui.selectable_value(
-                            &mut self.config.microphone,
-                            "default".into(),
-                            "System default",
-                        );
-                        for name in &self.microphone_names {
-                            ui.selectable_value(&mut self.config.microphone, name.clone(), name);
+                ui.horizontal(|ui| {
+                    egui::ComboBox::from_id_salt("microphone")
+                        .selected_text(if self.microphone_names.contains(&self.config.microphone) {
+                            self.config.microphone.as_str()
+                        } else if self.config.microphone == "default" {
+                            "System default"
+                        } else {
+                            "Unavailable — choose another"
+                        })
+                        .width(175.0)
+                        .show_ui(ui, |ui| {
+                            ui.selectable_value(
+                                &mut self.config.microphone,
+                                "default".into(),
+                                "System default",
+                            );
+                            for name in &self.microphone_names {
+                                ui.selectable_value(&mut self.config.microphone, name.clone(), name);
+                            }
+                        });
+                    if ui.small_button("Refresh").clicked() {
+                        self.microphone_names = audio::list_devices();
+                        if self.config.microphone != "default"
+                            && !self.microphone_names.contains(&self.config.microphone)
+                        {
+                            self.config.microphone = "default".into();
+                            self.banner = "Selected microphone is unavailable; switched to the system default."
+                                .into();
+                            self.banner_is_error = false;
                         }
-                    });
+                    }
+                });
                 ui.end_row();
                 ui.label("Speech model");
                 egui::ComboBox::from_id_salt("speech_model")
@@ -637,10 +748,17 @@ impl VaaniApp {
                     .hint_text("Paste your API key")
                     .desired_width(ui.available_width() - 92.0),
             );
-            if ui.button("Test key").clicked() {
+            if ui.button("Test translation access").clicked() {
                 self.test_api_key();
             }
         });
+        ui.label(
+            RichText::new(
+                "This checks Mayura translation access, not Saaras speech recognition access.",
+            )
+            .weak()
+            .size(11.0),
+        );
 
         ui.add_space(7.0);
         ui.horizontal(|ui| {

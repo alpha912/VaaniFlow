@@ -16,15 +16,17 @@
   <a href="https://github.com/alpha912/VaaniFlow/actions/workflows/ci.yml"><img src="https://img.shields.io/github/actions/workflow/status/alpha912/VaaniFlow/ci.yml?style=flat-square&label=CI" alt="CI" /></a>
 </p>
 
-VaaniFlow v0.3 is a native Rust desktop app with an egui interface. It captures short microphone recordings, sends them to Sarvam for speech recognition and optional translation, and helps enter the resulting text into another app. Cross-application focus detection and input simulation are platform-dependent; see [Platform status](#platform-status) before relying on those integrations.
+VaaniFlow v0.4 is a native Rust desktop app with an egui interface. It captures microphone recordings up to two minutes, splits audio into bounded Sarvam requests, performs speech recognition and optional translation, and helps enter the resulting text into another app. Recordings can be discarded or retried after a failed request. Cross-application focus detection and input simulation are platform-dependent; see [Platform status](#platform-status) before relying on those integrations.
 
 ## What it does
 
-- Captures microphone audio with a configurable input device and a 27-second recording limit.
+- Captures microphone audio with a configurable input device and a two-minute recording limit; recordings are split into requests under 27 seconds each.
+- Lets you discard a recording, retry a failed request, and refresh the microphone list.
 - Uses Sarvam Saaras speech-to-text (v3 by default; v4 can be selected) and Mayura v1 for optional translation.
 - Supports Sarvam's available languages and speech modes; exact availability depends on the selected model and Sarvam account.
 - Provides configurable source/target languages, a global shortcut, translation style and terminology hints.
-- Defaults to review-before-insert and keeps the Sarvam credential separate from ordinary preferences using the operating-system credential store when available.
+- Defaults to review-before-insert and keeps the Sarvam credential separate from ordinary preferences using the operating-system credential store when available. Transcribed text remains available if the optional translation step fails.
+- Keeps a transcription/translation result or a saved retry available after a failed request; recordings awaiting retry remain in memory until retried, forgotten, discarded by starting a new recording, or the app exits.
 - Sends requests directly from the app to Sarvam. Dictation audio and text are sent to that service when you use transcription or translation; VaaniFlow does not provide an intermediary service.
 
 ## Technology
@@ -102,18 +104,18 @@ A transcription request sends the recorded audio to Sarvam's API. Translation se
 
 ## Release process
 
-The version in `native/Cargo.toml` is the release version for the v0.3 native app. Before a release:
+The version in `native/Cargo.toml` is the release version for the native app. The tag workflow runs formatting, Clippy and tests on the exact tagged source before building Windows, macOS (the hosted runner's architecture) and Linux archives. Before a release:
 
 1. Update the native crate version and regenerate/check the workspace `Cargo.lock` as needed.
 2. Run the formatting, Clippy, tests and release build commands above, and wait for CI to pass on the changes.
-3. Create and push a version tag that exactly matches the crate version. For example, for `0.3.0`:
+3. Create and push a version tag that exactly matches the crate version. For example, for `0.4.0`:
 
    ```bash
-   git tag -a v0.3.0 -m "VaaniFlow v0.3.0"
-   git push origin v0.3.0
+   git tag -a v0.4.0 -m "VaaniFlow v0.4.0"
+   git push origin v0.4.0
    ```
 
-4. The tag workflow verifies the version and builds Windows, macOS (the hosted runner's architecture) and Linux archives. It then creates a **draft** GitHub Release with those unsigned portable binaries attached. Review the artifacts and notes, then publish the draft when ready.
+4. The workflow creates a **draft** GitHub Release with unsigned portable binaries attached. Review the artifacts and notes, smoke-test on each supported platform/session, then publish the draft when ready.
 
 Do not reuse a published version tag. If a build fails, fix the source and publish a new patch version/tag rather than moving the old tag.
 
@@ -124,7 +126,7 @@ VaaniFlow/
 ├── Cargo.toml                 # Rust workspace
 ├── Cargo.lock                 # Workspace dependency lockfile
 ├── native/
-│   ├── Cargo.toml             # vaaniflow 0.3 native package (egui/eframe)
+│   ├── Cargo.toml             # vaaniflow 0.4 native package (egui/eframe)
 │   ├── icons/                 # App icons
 │   └── src/
 │       ├── main.rs            # Native eframe application entry point
@@ -145,6 +147,8 @@ VaaniFlow/
 - Base URL: `https://api.sarvam.ai`
 - Speech-to-text endpoint: `POST /speech-to-text` (`saaras:v3` or `saaras:v4`)
 - Translation endpoint: `POST /translate` (`mayura:v1`)
+- The settings check exercises Mayura translation access only; it does not establish Saaras speech-recognition access.
+- Recordings longer than 27 seconds are recognized and (when enabled) translated as separate segments and joined in order.
 - Availability, quotas, accepted languages and modes are controlled by Sarvam and may change.
 
 ## Contributing
