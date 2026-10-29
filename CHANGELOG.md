@@ -5,6 +5,26 @@ All notable changes to VaaniFlow will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.4.0] - 2026-10-29
+
+### Added
+
+- Extended recordings to two minutes and split them into bounded requests below Sarvam's per-request duration guidance.
+- Added discard/forget/retry controls and microphone-list refresh.
+- Preserved the recognized transcript when optional translation fails; clarified that the settings check verifies translation access, not speech-recognition access.
+- Added release-source formatting, Clippy and test gates before release artifacts are built.
+
+### Fixed
+
+- Replaced settings files without deleting the existing file first; added tests for successful and failed replacements.
+- Updated API key only after preferences save successfully and clarified the keyring-failure warning.
+- Kept the UI version label synchronized with the native package version.
+
+### Platform notes
+
+- Automatic paste remains Windows-only and best-effort. macOS and Linux continue to use manual clipboard paste; no platform-specific permissions or parity are implied.
+- Release artifacts remain unsigned portable archives.
+
 ## [0.3.0] - 2026-10-22
 
 ### Added
@@ -71,6 +91,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Windows 10/11 (primary, fully supported)
 - macOS (scaffolded, needs contributor testing)
 
+[0.4.0]: https://github.com/alpha912/VaaniFlow/releases/tag/v0.4.0
 [0.3.0]: https://github.com/alpha912/VaaniFlow/releases/tag/v0.3.0
 [0.2.0]: https://github.com/alpha912/VaaniFlow/releases/tag/v0.2.0
 [0.1.0]: https://github.com/alpha912/VaaniFlow/releases/tag/v0.1.0

@@ -36,9 +36,49 @@ jobs:
           fi
           echo "version=${version}" >> "${GITHUB_OUTPUT}"
 
+  verify:
+    name: Verify release source
+    needs: validate-tag
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout tagged source
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Require the tag to point to a commit on main
+        run: |
+          git fetch origin main
+          if ! git merge-base --is-ancestor "${GITHUB_SHA}" origin/main; then
+            echo "The release tag must point to a commit reachable from main." >&2
+            exit 1
+          fi
+
+      - name: Install Linux build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes --no-install-recommends \
+            libasound2-dev libdbus-1-dev libudev-dev pkg-config \
+            libx11-dev libxcursor-dev libxinerama-dev libxkbcommon-dev \
+            libxkbcommon-x11-dev libxrandr-dev libxi-dev libwayland-dev libxtst-dev
+
+      - name: Install Rust stable
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy, rustfmt
+
+      - name: Check formatting
+        run: cargo fmt --all -- --check
+
+      - name: Run Clippy
+        run: cargo clippy --workspace --all-targets --locked -- -D warnings
+
+      - name: Run tests
+        run: cargo test --workspace --locked
+
   build:
     name: Build ${{ matrix.platform }}
-    needs: validate-tag
+    needs: [validate-tag, verify]
     strategy:
       fail-fast: false
       matrix:
@@ -120,6 +160,8 @@ jobs:
         run: |
           cat > release-notes.md <<'EOF'
           ## VaaniFlow v${{ needs.validate-tag.outputs.version }}
+
+          Highlights include two-minute recordings split into bounded Sarvam requests, discard/retry controls, microphone refresh, and preserving the original transcript when optional translation fails.
 
           These are unsigned portable binaries, not installers. See the included README for platform prerequisites and input/accessibility limitations. Linux builds require compatible desktop/audio libraries; macOS builds are for the architecture shown in each archive name.
 
