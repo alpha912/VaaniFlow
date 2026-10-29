@@ -613,165 +613,225 @@ impl VaaniApp {
     }
 
     fn draw_settings(&mut self, ui: &mut egui::Ui) {
-        ui.add_space(16.0);
-        ui.label(RichText::new("SETTINGS").size(12.0).strong().color(ACCENT));
-        ui.add_space(8.0);
-
-        egui::Grid::new("language_grid")
-            .num_columns(2)
-            .spacing([12.0, 10.0])
+        ui.add_space(14.0);
+        egui::Frame::group(ui.style())
+            .fill(PANEL)
+            .stroke(Stroke::new(1.0, Color32::from_gray(58)))
+            .inner_margin(egui::Margin::same(16))
             .show(ui, |ui| {
-                ui.label("Speak in");
-                Self::draw_language_combo(
-                    ui,
-                    "source_language",
-                    &mut self.config.source_language,
-                    true,
-                );
-                ui.end_row();
-                ui.label("Output language");
-                Self::draw_language_combo(
-                    ui,
-                    "target_language",
-                    &mut self.config.target_language,
-                    false,
-                );
-                ui.end_row();
-                ui.label("Microphone");
-                ui.horizontal(|ui| {
-                    egui::ComboBox::from_id_salt("microphone")
-                        .selected_text(if self.microphone_names.contains(&self.config.microphone) {
-                            self.config.microphone.as_str()
-                        } else if self.config.microphone == "default" {
-                            "System default"
-                        } else {
-                            "Unavailable — choose another"
-                        })
-                        .width(175.0)
-                        .show_ui(ui, |ui| {
-                            ui.selectable_value(
-                                &mut self.config.microphone,
-                                "default".into(),
-                                "System default",
-                            );
-                            for name in &self.microphone_names {
-                                ui.selectable_value(&mut self.config.microphone, name.clone(), name);
+                ui.label(RichText::new("SETTINGS").size(12.0).strong().color(ACCENT));
+                ui.add_space(3.0);
+                ui.label(RichText::new("Language, microphone and recognition").weak());
+                ui.add_space(12.0);
+
+                egui::Grid::new("settings_grid")
+                    .num_columns(2)
+                    .spacing([14.0, 11.0])
+                    .show(ui, |ui| {
+                        ui.label("Speak in");
+                        Self::draw_language_combo(
+                            ui,
+                            "source_language",
+                            &mut self.config.source_language,
+                            true,
+                        );
+                        ui.end_row();
+
+                        ui.label("Output language");
+                        Self::draw_language_combo(
+                            ui,
+                            "target_language",
+                            &mut self.config.target_language,
+                            false,
+                        );
+                        ui.end_row();
+
+                        ui.label("Microphone");
+                        ui.horizontal(|ui| {
+                            egui::ComboBox::from_id_salt("microphone")
+                                .selected_text(
+                                    if self.microphone_names.contains(&self.config.microphone) {
+                                        self.config.microphone.as_str()
+                                    } else if self.config.microphone == "default" {
+                                        "System default"
+                                    } else {
+                                        "Unavailable — choose another"
+                                    },
+                                )
+                                .width(165.0)
+                                .show_ui(ui, |ui| {
+                                    ui.selectable_value(
+                                        &mut self.config.microphone,
+                                        "default".into(),
+                                        "System default",
+                                    );
+                                    for name in &self.microphone_names {
+                                        ui.selectable_value(
+                                            &mut self.config.microphone,
+                                            name.clone(),
+                                            name,
+                                        );
+                                    }
+                                });
+                            if ui.small_button("Refresh").clicked() {
+                                self.microphone_names = audio::list_devices();
+                                if self.config.microphone != "default"
+                                    && !self.microphone_names.contains(&self.config.microphone)
+                                {
+                                    self.config.microphone = "default".into();
+                                    self.banner = "Selected microphone is unavailable; switched to the system default."
+                                        .into();
+                                    self.banner_is_error = false;
+                                }
                             }
                         });
-                    if ui.small_button("Refresh").clicked() {
-                        self.microphone_names = audio::list_devices();
-                        if self.config.microphone != "default"
-                            && !self.microphone_names.contains(&self.config.microphone)
+                        ui.end_row();
+
+                        ui.label("Speech model");
+                        egui::ComboBox::from_id_salt("speech_model")
+                            .selected_text(if self.config.stt_model == "saaras:v4" {
+                                "Saaras v4 (preview)"
+                            } else {
+                                "Saaras v3"
+                            })
+                            .width(210.0)
+                            .show_ui(ui, |ui| {
+                                ui.selectable_value(
+                                    &mut self.config.stt_model,
+                                    "saaras:v3".into(),
+                                    "Saaras v3",
+                                );
+                                ui.selectable_value(
+                                    &mut self.config.stt_model,
+                                    "saaras:v4".into(),
+                                    "Saaras v4 (preview)",
+                                );
+                            });
+                        ui.end_row();
+
+                        ui.label("Speech output");
+                        egui::ComboBox::from_id_salt("speech_mode")
+                            .selected_text(speech_mode_label(&self.config.stt_mode))
+                            .width(210.0)
+                            .show_ui(ui, |ui| {
+                                for (value, label) in [
+                                    ("transcribe", "Transcribe"),
+                                    ("translate", "Translate to English"),
+                                    ("verbatim", "Verbatim"),
+                                    ("translit", "Transliterate"),
+                                    ("codemix", "Code-mixed"),
+                                ] {
+                                    ui.selectable_value(
+                                        &mut self.config.stt_mode,
+                                        value.into(),
+                                        label,
+                                    );
+                                }
+                            });
+                        ui.end_row();
+
+                        ui.label("Global shortcut");
+                        ui.add(
+                            egui::TextEdit::singleline(&mut self.config.hotkey)
+                                .hint_text("Ctrl+Shift+Space")
+                                .desired_width(210.0),
+                        );
+                        ui.end_row();
+
+                        if self.config.target_language != "same"
+                            && self.config.target_language != "en-IN"
                         {
-                            self.config.microphone = "default".into();
-                            self.banner = "Selected microphone is unavailable; switched to the system default."
-                                .into();
-                            self.banner_is_error = false;
-                        }
-                    }
-                });
-                ui.end_row();
-                ui.label("Speech model");
-                egui::ComboBox::from_id_salt("speech_model")
-                    .selected_text(&self.config.stt_model)
-                    .width(210.0)
-                    .show_ui(ui, |ui| {
-                        ui.selectable_value(
-                            &mut self.config.stt_model,
-                            "saaras:v3".into(),
-                            "Saaras v3",
-                        );
-                        ui.selectable_value(
-                            &mut self.config.stt_model,
-                            "saaras:v4".into(),
-                            "Saaras v4 (preview)",
-                        );
-                    });
-                ui.end_row();
-                ui.label("Global shortcut");
-                ui.add(
-                    egui::TextEdit::singleline(&mut self.config.hotkey)
-                        .hint_text("Ctrl+Shift+Space")
-                        .desired_width(210.0),
-                );
-                ui.end_row();
-                ui.label("Speech mode");
-                egui::ComboBox::from_id_salt("speech_mode")
-                    .selected_text(&self.config.stt_mode)
-                    .width(210.0)
-                    .show_ui(ui, |ui| {
-                        for mode in ["transcribe", "translate", "verbatim", "translit", "codemix"] {
-                            ui.selectable_value(&mut self.config.stt_mode, mode.into(), mode);
+                            ui.label("Translation style");
+                            egui::ComboBox::from_id_salt("translation_mode")
+                                .selected_text(translation_style_label(
+                                    &self.config.translation_mode,
+                                ))
+                                .width(210.0)
+                                .show_ui(ui, |ui| {
+                                    for (value, label) in [
+                                        ("formal", "Formal"),
+                                        ("classic-colloquial", "Classic colloquial"),
+                                        ("modern-colloquial", "Modern colloquial"),
+                                        ("code-mixed", "Code-mixed"),
+                                    ] {
+                                        ui.selectable_value(
+                                            &mut self.config.translation_mode,
+                                            value.into(),
+                                            label,
+                                        );
+                                    }
+                                });
+                            ui.end_row();
                         }
                     });
-                ui.end_row();
-            });
 
-        if self.config.stt_model == "saaras:v4" {
-            ui.add_space(8.0);
-            ui.label("Terminology hints (comma-separated, up to 50)");
-            ui.add(
-                egui::TextEdit::singleline(&mut self.config.keyterms)
-                    .hint_text("Names, products, or specialist words")
-                    .desired_width(f32::INFINITY),
-            );
-        }
-        if self.config.target_language != "same" && self.config.target_language != "en-IN" {
-            ui.add_space(8.0);
-            ui.horizontal(|ui| {
-                ui.label("Translation style");
-                egui::ComboBox::from_id_salt("translation_mode")
-                    .selected_text(&self.config.translation_mode)
-                    .show_ui(ui, |ui| {
-                        for mode in [
-                            "formal",
-                            "classic-colloquial",
-                            "modern-colloquial",
-                            "code-mixed",
-                        ] {
-                            ui.selectable_value(
-                                &mut self.config.translation_mode,
-                                mode.into(),
-                                mode,
-                            );
-                        }
-                    });
-            });
-        }
-
-        ui.add_space(9.0);
-        ui.label("Sarvam API key (saved in your operating-system keyring)");
-        ui.horizontal(|ui| {
-            ui.add(
-                egui::TextEdit::singleline(&mut self.key_entry)
-                    .password(true)
-                    .hint_text("Paste your API key")
-                    .desired_width(ui.available_width() - 92.0),
-            );
-            if ui.button("Test translation access").clicked() {
-                self.test_api_key();
-            }
-        });
-        ui.label(
-            RichText::new(
-                "This checks Mayura translation access, not Saaras speech recognition access.",
-            )
-            .weak()
-            .size(11.0),
-        );
-
-        ui.add_space(7.0);
-        ui.horizontal(|ui| {
-            ui.checkbox(
-                &mut self.config.review_before_paste,
-                "Review before copying / pasting",
-            );
-            ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                if ui.button(RichText::new("Save settings").strong()).clicked() {
-                    self.save_settings();
+                if self.config.stt_model == "saaras:v4" {
+                    ui.add_space(12.0);
+                    ui.label("TERMINOLOGY HINTS · UP TO 50");
+                    ui.add(
+                        egui::TextEdit::singleline(&mut self.config.keyterms)
+                            .hint_text("Names, products or specialist words — comma-separated")
+                            .desired_width(f32::INFINITY),
+                    );
                 }
             });
-        });
+
+        ui.add_space(10.0);
+        egui::Frame::group(ui.style())
+            .fill(PANEL)
+            .stroke(Stroke::new(1.0, Color32::from_gray(58)))
+            .inner_margin(egui::Margin::same(16))
+            .show(ui, |ui| {
+                ui.label(
+                    RichText::new("PRIVACY & INSERTION")
+                        .size(12.0)
+                        .strong()
+                        .color(ACCENT),
+                );
+                ui.add_space(3.0);
+                ui.label(
+                    RichText::new("Your API key is stored in the OS keyring when available.")
+                        .weak(),
+                );
+                ui.add_space(12.0);
+
+                ui.add(
+                    egui::TextEdit::singleline(&mut self.key_entry)
+                        .password(true)
+                        .hint_text("Sarvam API key")
+                        .desired_width(f32::INFINITY),
+                );
+                ui.add_space(5.0);
+                if ui.button("Test translation access").clicked() {
+                    self.test_api_key();
+                }
+                ui.label(
+                    RichText::new("Checks Mayura only; Saaras speech access is not tested.")
+                        .weak()
+                        .size(11.0),
+                );
+                ui.add_space(10.0);
+                ui.separator();
+                ui.add_space(6.0);
+                ui.horizontal(|ui| {
+                    ui.checkbox(
+                        &mut self.config.review_before_paste,
+                        "Review before automatic paste",
+                    );
+                    ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                        if ui.button(RichText::new("Save settings").strong()).clicked() {
+                            self.save_settings();
+                        }
+                    });
+                });
+                ui.label(
+                    RichText::new(
+                        "When off, completed text is pasted automatically when supported.",
+                    )
+                    .weak()
+                    .size(11.0),
+                );
+            });
     }
 
     fn draw_banner(&self, ui: &mut egui::Ui) {
@@ -883,6 +943,25 @@ fn simulate_paste() -> Result<(), String> {
 #[cfg(not(target_os = "windows"))]
 fn simulate_paste() -> Result<(), String> {
     Err("automatic paste is currently available on Windows only".into())
+}
+
+fn speech_mode_label(mode: &str) -> &'static str {
+    match mode {
+        "translate" => "Translate to English",
+        "verbatim" => "Verbatim",
+        "translit" => "Transliterate",
+        "codemix" => "Code-mixed",
+        _ => "Transcribe",
+    }
+}
+
+fn translation_style_label(mode: &str) -> &'static str {
+    match mode {
+        "classic-colloquial" => "Classic colloquial",
+        "modern-colloquial" => "Modern colloquial",
+        "code-mixed" => "Code-mixed",
+        _ => "Formal",
+    }
 }
 
 fn format_duration(duration: Duration) -> String {
