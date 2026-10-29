@@ -11,6 +11,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Extended recordings to two minutes and split them into bounded requests below Sarvam's per-request duration guidance.
 - Added discard/forget/retry controls and microphone-list refresh.
+- Grouped settings into clearer sections, aligned controls, and replaced raw mode identifiers with readable labels.
 - Preserved the recognized transcript when optional translation fails; clarified that the settings check verifies translation access, not speech-recognition access.
 - Added release-source formatting, Clippy and test gates before release artifacts are built.
 
